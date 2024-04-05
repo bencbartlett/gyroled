@@ -1,9 +1,9 @@
 #include <Arduino.h>
-#include <arduinoFFT.h>
-// #include <FastLED.h>
 #include <Adafruit_NeoPixel.h>
-// #include <Servo.h>
 #include <ESP32Servo.h>
+
+#include "fft.h"
+#include "MSGEQ7.h"
 
 #define LED_PIN         32
 #define SERVO_1_PIN     26
@@ -19,19 +19,18 @@
 #define LED_COUNT_RING_3 179
 #define LED_COUNT_TOTAL  648
 
-#define BRIGHTNESS 100
+#define BRIGHTNESS 180
 
-
-#define SAMPLES         64           // CAN"T CHANGE AT THE MOMENT, Must be a power of 2
-#define SAMPLING_FREQ   20000         // Hz, must be 40000 or less due to ADC conversion time. Determines maximum frequency that can be analysed by the FFT Fmax=sampleF/2.
 #define AMPLITUDE       1000          // Depending on your audio source level, you may need to alter this value. Can be used as a 'sensitivity' control.
 #define NUM_BANDS       8             // To change this, you will need to change the bunch of if statements describing the mapping from bins to bands
+#define NUM_BANDS_MSQEQ7 7
 #define NOISE           20           // Used as a crude noise filter, values below this are ignored
 // #define TOP             16
-#define USE_AVERAGING   false
-#define USE_ROLLING_AMPLITUDE_AVERAGING false
-#define PEAK_DECAY_RATE 1
+#define PEAK_DECAY_RATE 5
 #define NOISE_EMA_ALPHA 0.02        // At about 25fps this is about a 2 second window
+
+#define OUTPUT_TO_VISUALIZER true
+#define USE_MSGEQ7 true
 
 float avgNoise = 10.0;
 
@@ -47,28 +46,18 @@ int ring_2_midpoint_R = (int) (LED_COUNT_RING_2 * 0.75 + LED_COUNT_RING_1 - 1); 
 int ring_3_midpoint_L = (int) (LED_COUNT_RING_3 * 0.25 + LED_COUNT_RING_2 + LED_COUNT_RING_1);
 int ring_3_midpoint_R = (int) (LED_COUNT_RING_3 * 0.75 + LED_COUNT_RING_2 + LED_COUNT_RING_1);
 
-// Sampling and FFT stuff
-unsigned int sampling_period_us;
-int bandLimits[8] = {3, 6, 13, 27, 55, 112, 229};
-double scaleFactor = (double)(SAMPLES/2) / 256.0; // Calculate the scale factor based on new SAMPLES
 
-int peak[SAMPLES];              // The length of these arrays must be >= NUM_BANDS
-int oldBarHeights[SAMPLES];
-int bandValues[SAMPLES];
-float vReal[SAMPLES];
-float vImag[SAMPLES];
+
+int peak[NUM_BANDS] = { };              // The length of these arrays must be >= NUM_BANDS
+int spectrogram[NUM_BANDS] = { };
+uint16_t bands[NUM_BANDS_MSQEQ7] = { };
+// int oldBarHeights[NUM_BANDS];
+// int bandValues[NUM_BANDS];
+
 int noiseLevel = 0;
 int frame = 0;
-unsigned long newTime;
 
 float updatesPerSecond = 0.0;
-
-// arduinoFFT FFT = arduinoFFT(vReal, vImag, SAMPLES, SAMPLING_FREQ);
-ArduinoFFT<float> FFT = ArduinoFFT<float>(vReal, vImag, SAMPLES, SAMPLING_FREQ); /* Create FFT object */
-
-
-
-
 
 Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_RGBW + NEO_KHZ800);
 
@@ -86,14 +75,13 @@ const int whiteSpeed = 5; // Speed of white light moving
 const int whiteLength = 30; // Length of the white light
 bool updateServo = true; // Flag to control servo update
 unsigned long lastServoUpdate = 0;
-unsigned long lastPeakUpdate = 0;
 unsigned long lastSample = 0;
 unsigned long lastUpdate = 0;
 
 
 void setup() {
 
-  Serial.begin(9600);
+  Serial.begin(115200);
 
   strip.begin();
   strip.clear();
@@ -113,18 +101,16 @@ void setup() {
   servo3.attach(SERVO_3_PIN, 500, 2400);
 
 
-  sampling_period_us = round(1000000 * (1.0 / SAMPLING_FREQ));
   
   // Reset bandValues[]
   for (int i = 0; i<NUM_BANDS; i++){
-    bandValues[i] = 0;
+    // bandValues[i] = 0;
     peak[i] = 0;
-    oldBarHeights[i] = 0;
+    // oldBarHeights[i] = 0;
   }
 
-  for (int i = 0; i < 8; i++) {
-    bandLimits[i] = (int)(bandLimits[i] * double(SAMPLES/2) / 256.0);
-  }
+  setup_MSGEQ7();
+
 }
 
 
@@ -242,105 +228,54 @@ void loop() {
   updatesPerSecond = 1000.0 / float(millis() - lastUpdate);
   lastUpdate = millis();
 
+
+
   String output = "";
   // output += "Updates per second: ";
   output += updatesPerSecond;
   output += "\n";
 
   // if (millis() - lastSample > 10) {
-  #if true
+  #if USE_MSGEQ7
+    // noiseLevel = frame % 2 == 0 ? 0 : 100;
+
     lastSample = millis();
-    // Reset bandValues[]
-    for (int i = 0; i<NUM_BANDS; i++){
-      bandValues[i] = 0;
-    }
-
-    // Sample the audio pin
-    for (int i = 0; i < SAMPLES; i++) {
-      newTime = micros();
-      vReal[i] = analogRead(AUDIO_IN_PIN); // A conversion takes about 9.7uS on an ESP32
-      vImag[i] = 0;
-      while ((micros() - newTime) < sampling_period_us) { /* chill */ }
-    }
-
-    // FFT.dcRemoval();
-    FFT.windowing(FFTWindow::Hamming, FFTDirection::Forward);	/* Weigh data */
-    FFT.compute(FFTDirection::Forward); /* Compute FFT */
-    FFT.complexToMagnitude(); /* Compute magnitudes */
-    // float x = FFT.majorPeak();
-
-    // Analyse FFT results
-    for (int i = 2; i < (SAMPLES/2); i++){       // Don't use sample 0 and only first SAMPLES/2 are usable. Each array element represents a frequency bin and its value the amplitude.
-      if (vReal[i] > NOISE) {                    // Add a crude noise filter
-
-        // // 8 bands, 12kHz top band
-        // if (i<=3 )                bandValues[0]  += (int)vReal[i];
-        // else if (i>3   && i<=6  ) bandValues[1]  += (int)vReal[i];
-        // else if (i>6   && i<=13 ) bandValues[2]  += (int)vReal[i];
-        // else if (i>13  && i<=27 ) bandValues[3]  += (int)vReal[i];
-        // else if (i>27  && i<=55 ) bandValues[4]  += (int)vReal[i];
-        // else if (i>55  && i<=112) bandValues[5]  += (int)vReal[i];
-        // else if (i>112 && i<=229) bandValues[6]  += (int)vReal[i];
-        // else if (i>229          ) bandValues[7]  += (int)vReal[i];
-
-        if (i<=bandLimits[0])                         bandValues[0]  += (int)vReal[i];
-        else if (i>bandLimits[0] && i<=bandLimits[1]) bandValues[1]  += (int)vReal[i];
-        else if (i>bandLimits[1] && i<=bandLimits[2]) bandValues[2]  += (int)vReal[i];
-        else if (i>bandLimits[2] && i<=bandLimits[3]) bandValues[3]  += (int)vReal[i];
-        else if (i>bandLimits[3] && i<=bandLimits[4]) bandValues[4]  += (int)vReal[i];
-        else if (i>bandLimits[4] && i<=bandLimits[5]) bandValues[5]  += (int)vReal[i];
-        else if (i>bandLimits[5] && i<=bandLimits[6]) bandValues[6]  += (int)vReal[i];
-        else if (i>bandLimits[6])                     bandValues[7]  += (int)vReal[i];
-
-        // //16 bands, 12kHz top band
-        //   if (i<=2 )           bandValues[0]  += (int)vReal[i];
-        //   if (i>2   && i<=3  ) bandValues[1]  += (int)vReal[i];
-        //   if (i>3   && i<=5  ) bandValues[2]  += (int)vReal[i];
-        //   if (i>5   && i<=7  ) bandValues[3]  += (int)vReal[i];
-        //   if (i>7   && i<=9  ) bandValues[4]  += (int)vReal[i];
-        //   if (i>9   && i<=13 ) bandValues[5]  += (int)vReal[i];
-        //   if (i>13  && i<=18 ) bandValues[6]  += (int)vReal[i];
-        //   if (i>18  && i<=25 ) bandValues[7]  += (int)vReal[i];
-        //   if (i>25  && i<=36 ) bandValues[8]  += (int)vReal[i];
-        //   if (i>36  && i<=50 ) bandValues[9]  += (int)vReal[i];
-        //   if (i>50  && i<=69 ) bandValues[10] += (int)vReal[i];
-        //   if (i>69  && i<=97 ) bandValues[11] += (int)vReal[i];
-        //   if (i>97  && i<=135) bandValues[12] += (int)vReal[i];
-        //   if (i>135 && i<=189) bandValues[13] += (int)vReal[i];
-        //   if (i>189 && i<=264) bandValues[14] += (int)vReal[i];
-        //   if (i>264          ) bandValues[15] += (int)vReal[i];
-
+    recordSpectrogramMSGEQ7(bands);
+    // printSpectrogramMSGEQ7(bands);
+    // Process the FFT data into bar heights
+    for (int band = 0; band < NUM_BANDS_MSQEQ7; band++) {
+      // Move peak up
+      if (int(bands[band]) > peak[band]) {
+        // peak[band] = min(TOP, barHeight);
+        peak[band] = bands[band];
       }
     }
 
+    // Decay peak
+    for (int band = 0; band < NUM_BANDS_MSQEQ7; band++) {
+      if (peak[band] > 0) peak[band] -= PEAK_DECAY_RATE;
+    }
+
+    noiseLevel = (peak[0] + peak[1] + peak[2] + peak[3]);
+    avgNoise = (NOISE_EMA_ALPHA * noiseLevel) + ((1 - NOISE_EMA_ALPHA) * avgNoise);
+
+
+    
+
+  #else
+
+    lastSample = millis();
+    computeSpectrogram(spectrogram);
     // Process the FFT data into bar heights
     for (int band = 0; band < NUM_BANDS; band++) {
-
-      // Scale the bars for the display
-      int barHeight = bandValues[band] / AMPLITUDE;
-      // if (barHeight > TOP) barHeight = TOP;
-
-      // Small amount of averaging between frames
-      if (USE_AVERAGING) {
-        barHeight = ((oldBarHeights[band] * 1) + barHeight) / 2;
-      }
-      
       // Move peak up
-      if (barHeight > peak[band]) {
+      if (spectrogram[band] > peak[band]) {
         // peak[band] = min(TOP, barHeight);
-        peak[band] = barHeight;
+        peak[band] = spectrogram[band];
       }
-
-      // Save oldBarHeights for averaging later
-      oldBarHeights[band] = barHeight;
     }
 
-    // // Decay peak
-    // if (millis() - lastPeakUpdate > 20) {
-    //   lastPeakUpdate = millis();
-
-    // }
-
+    // Decay peak
     for (byte band = 0; band < NUM_BANDS; band++) {
       if (peak[band] > 0) peak[band] -= PEAK_DECAY_RATE;
     }
@@ -349,9 +284,23 @@ void loop() {
     avgNoise = (NOISE_EMA_ALPHA * noiseLevel) + ((1 - NOISE_EMA_ALPHA) * avgNoise);
     // noiseLevel = (oldBarHeights[1] + oldBarHeights[2] + oldBarHeights[3] + oldBarHeights[4]); // / (AMPLITUDE / 4);
 
-  #else
-    noiseLevel = frame % 2 == 0 ? 0 : 100;
+
   #endif
+
+
+  #if OUTPUT_TO_VISUALIZER
+
+  String foo = "";
+  for(uint16_t i = 0; i < NUM_BANDS_MSQEQ7; i++) {
+    // Serial.println(bands[i]); // Send each frequency bin's magnitude
+    foo += bands[i];
+    if (i < NUM_BANDS_MSQEQ7 - 1) {
+      foo += ",";
+    }
+  }
+  Serial.println(foo);
+  
+  #else
 
 
 
@@ -407,6 +356,8 @@ void loop() {
 
   Serial.print(output);
   // delay(10);
+
+  #endif // OUTPUT_TO_VISUALIZER
 
 }
 
