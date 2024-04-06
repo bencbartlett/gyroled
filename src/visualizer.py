@@ -21,14 +21,14 @@ class MainWindow(QMainWindow):
         self.graphWidget = pg.PlotWidget()
         self.setCentralWidget(self.graphWidget)
 
-        self.bars = 7
+        self.bars = 8
         self.bgColor = 'w'
         # self.barColors = [QBrush(pg.mkColor(color)) for color in [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0), (255, 0, 255), (0, 255, 255), (128, 128, 128)]]
         self.x = list(range(self.bars))
         self.y = [0] * self.bars
 
         # Set a consistent y-axis range
-        self.graphWidget.setYRange(min=0, max=20)  # Adjust min and max values as needed
+        self.graphWidget.setYRange(min=0, max=150)  # Adjust min and max values as needed
 
 
         self.graphWidget.setBackground(self.bgColor)

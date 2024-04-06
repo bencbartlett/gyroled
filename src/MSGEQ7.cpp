@@ -1,9 +1,11 @@
+#include <Arduino.h>
 #include <MD_MSGEQ7.h> 
 
 // hardware pin definitions - change to suit circuit
 #define DATA_PIN    13
 #define RESET_PIN   33
 #define STROBE_PIN  12
+#define MAX_BAND 7 
 
 // frequency reading the IC data
 #define READ_DELAY  50
@@ -28,6 +30,57 @@ void recordSpectrogramMSGEQ7(uint16_t bandValues[MAX_BAND]) {
     }
 }
 
+void recordSpectrogramMSGEQ7_v2(uint16_t bandValues[MAX_BAND]) {
+    // Read the MSGEQ7 IC
+    digitalWrite(RESET_PIN, HIGH);
+    digitalWrite(RESET_PIN, LOW);
+    for (int i = 0; i < MAX_BAND; i++) {
+        digitalWrite(STROBE_PIN, LOW);
+        delayMicroseconds(30); // to allow the output to settle
+        // The read value is 10-bit (0 to 1024).  PWM needs a value from 0 to 255, so divide by 4
+        bandValues[i] = analogRead(DATA_PIN) >> 2;
+        digitalWrite(STROBE_PIN, HIGH);
+    }
+    delay(READ_DELAY);
+
+
+
+
+//   int frequencyBandVolume;
+  
+//   // Toggle the RESET pin of the MSGEQ7 to start reading from the lowest frequency band
+//   digitalWrite(MSGEQ7_RESET_PIN, HIGH);
+//   digitalWrite(MSGEQ7_RESET_PIN, LOW);
+  
+//   // Read the volume in every frequency band from the MSGEQ7
+//   for (int i=0; i<NUM_FREQUENCY_BANDS; i++) {
+//     digitalWrite(MSGEQ7_STROBE_PIN, LOW);
+//     delayMicroseconds(30); // Allow the output to settle
+//     frequencyBandVolume = analogRead(MSGEQ7_ANALOG_PIN);
+//     digitalWrite(MSGEQ7_STROBE_PIN, HIGH);
+    
+//     // The read value is 10-bit (0 to 1024).  PWM needs a value from 0 to 255, so divide by 4
+//     frequencyBandVolume = frequencyBandVolume >> 2;
+    
+//     // Fade the current LED value for this band
+//     ledPWMValue[i] = ledPWMValue[i] > 7? ledPWMValue[i] - 7 : 0;
+    
+//     // Don't show the lower values
+//     if (frequencyBandVolume > 70) {
+//       // If the new volume is greater than that currently being showed then show the higher volume
+//       if (frequencyBandVolume > ledPWMValue[i])
+//         ledPWMValue[i] = frequencyBandVolume;
+//     }
+    
+//     // Set the LED PWM value to the frequency band's volume
+//     analogWrite(led[i],  ledPWMValue[i]);
+//   }
+  
+//   // Wait before executing this loop again
+//   delay(10);
+
+}
+
 void printSpectrogramMSGEQ7(uint16_t bandValues[MAX_BAND]) {
     String output;
     output += "Spectrogram: \n";
@@ -45,6 +98,15 @@ void printSpectrogramMSGEQ7(uint16_t bandValues[MAX_BAND]) {
 void setup_MSGEQ7() {
     MSGEQ7.begin();
     analogReadResolution(10);
+}
+
+void setup_MSGEQ7_v2() {
+    // Set up the MSGEQ7 IC
+    pinMode(DATA_PIN, INPUT);
+    pinMode(STROBE_PIN, OUTPUT);
+    pinMode(RESET_PIN, OUTPUT);
+    digitalWrite(RESET_PIN, LOW);
+    digitalWrite(STROBE_PIN, HIGH);
 }
 
 

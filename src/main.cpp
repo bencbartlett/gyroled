@@ -30,7 +30,7 @@
 #define NOISE_EMA_ALPHA 0.02        // At about 25fps this is about a 2 second window
 
 #define OUTPUT_TO_VISUALIZER true
-#define USE_MSGEQ7 true
+#define USE_MSGEQ7 false
 
 float avgNoise = 10.0;
 
@@ -109,7 +109,10 @@ void setup() {
     // oldBarHeights[i] = 0;
   }
 
+  #if USE_MSGEQ7
   setup_MSGEQ7();
+  // setup_MSGEQ7_v2();
+  #endif
 
 }
 
@@ -241,7 +244,9 @@ void loop() {
 
     lastSample = millis();
     recordSpectrogramMSGEQ7(bands);
+    // recordSpectrogramMSGEQ7_v2(bands);
     // printSpectrogramMSGEQ7(bands);
+
     // Process the FFT data into bar heights
     for (int band = 0; band < NUM_BANDS_MSQEQ7; band++) {
       // Move peak up
@@ -260,7 +265,20 @@ void loop() {
     avgNoise = (NOISE_EMA_ALPHA * noiseLevel) + ((1 - NOISE_EMA_ALPHA) * avgNoise);
 
 
-    
+    #if OUTPUT_TO_VISUALIZER
+
+    String foo = "";
+    for(uint16_t i = 0; i < NUM_BANDS_MSQEQ7; i++) {
+      // Serial.println(bands[i]); // Send each frequency bin's magnitude
+      foo += bands[i];
+      if (i < NUM_BANDS_MSQEQ7 - 1) {
+        foo += ",";
+      }
+    }
+    Serial.println(foo);
+
+    #endif
+  
 
   #else
 
@@ -284,48 +302,32 @@ void loop() {
     avgNoise = (NOISE_EMA_ALPHA * noiseLevel) + ((1 - NOISE_EMA_ALPHA) * avgNoise);
     // noiseLevel = (oldBarHeights[1] + oldBarHeights[2] + oldBarHeights[3] + oldBarHeights[4]); // / (AMPLITUDE / 4);
 
+    #if OUTPUT_TO_VISUALIZER
 
+    String foo = "";
+    for(uint16_t i = 0; i < NUM_BANDS; i++) {
+      // Serial.println(bands[i]); // Send each frequency bin's magnitude
+      foo += spectrogram[i];
+      if (i < NUM_BANDS - 1) {
+        foo += ",";
+      }
+    }
+    Serial.println(foo);
+    
+    #endif
   #endif
 
 
-  #if OUTPUT_TO_VISUALIZER
-
-  String foo = "";
-  for(uint16_t i = 0; i < NUM_BANDS_MSQEQ7; i++) {
-    // Serial.println(bands[i]); // Send each frequency bin's magnitude
-    foo += bands[i];
-    if (i < NUM_BANDS_MSQEQ7 - 1) {
-      foo += ",";
-    }
-  }
-  Serial.println(foo);
-  
-  #else
 
 
 
 
 
 
+  #if false
   output += "noiseLevel: ";
   output += noiseLevel;
   output += "\n";
-
-
-  // output += "Spectrogram: \n";
-  // for (int band = 0; band < NUM_BANDS; band++) { 
-  //   output += band;
-  //   for(int i = 0; i < oldBarHeights[band]; i++) {
-  //     output += ("=");
-  //   }
-  //   output += "\n";
-  // }
-
-  // output += "\n\n";
-
-
-  // =====================================================================
-
 
 
 
