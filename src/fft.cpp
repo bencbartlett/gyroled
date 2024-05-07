@@ -6,16 +6,17 @@
 
 #define SAMPLES 512          // CAN"T CHANGE AT THE MOMENT, Must be a power of 2
 #define SAMPLING_FREQ 40000 // Hz, must be 40000 or less due to ADC conversion time. Determines maximum frequency that can be analysed by the FFT Fmax=sampleF/2.
-#define AMPLITUDE 1000      // Depending on your audio source level, you may need to alter this value. Can be used as a 'sensitivity' control.
+#define AMPLITUDE 100      // Depending on your audio source level, you may need to alter this value. Can be used as a 'sensitivity' control.
 #define NUM_BANDS 7         // To change this, you will need to change the bunch of if statements describing the mapping from bins to bands
 #define NOISE 0            // Used as a crude noise filter, values below this are ignored, should be at least 10x amplitude
 #define USE_AVERAGING true
 #define USE_ROLLING_AMPLITUDE_AVERAGING false
 #define PEAK_DECAY_RATE 1
 #define NOISE_EMA_ALPHA 0.02 // At about 25fps this is about a 2 second window
+#define DO_FFT true
 
 
-#define USE_INMP441 true
+#define USE_INMP441 false
 
 #define I2S_NUM         I2S_NUM_0  // I2S port number
 #define SAMPLE_RATE     44100      // Sample rate of the microphone
@@ -28,7 +29,7 @@
 
 // Sampling and FFT stuff
 const unsigned int sampling_period_us = round(1000000. / SAMPLING_FREQ);
-const double scaleFactor = (double)(SAMPLES / 2) / 256.0; // Calculate the scale factor based on new SAMPLES
+const float scaleFactor = float(SAMPLES / (2.0 * 256.0)); // Calculate the scale factor based on new SAMPLES
 
 // The nth frequency bin has frequency = (n) * (sampling frequency) / (number of samples)
 const float binFrequencySize = SAMPLING_FREQ / SAMPLES;
@@ -51,6 +52,15 @@ const int bandLimitsHz[NUM_BANDS - 1] = {
     (bandsHz[4] + bandsHz[5]) / 2,
     (bandsHz[5] + bandsHz[6]) / 2
 };
+// const int bandLimitsHz[NUM_BANDS - 1] = {
+//     (bandsHz[0]),
+//     (bandsHz[1]),
+//     (bandsHz[2]),
+//     (bandsHz[3]),
+//     (bandsHz[4]),
+//     (bandsHz[5]) //,
+//     // (bandsHz[6]) / 2
+// };
 const int bandLimits[7] = {
     int(3 * scaleFactor),
     int(6 * scaleFactor),
@@ -62,10 +72,14 @@ const int bandLimits[7] = {
 };
 
 // int peak[NUM_BANDS] = {};          // The length of these arrays must be >= NUM_BANDS
-int oldBarHeights[NUM_BANDS] = {}; // Initializes to all zeros
-int bandValues[NUM_BANDS] = {};
+float oldBarHeights[NUM_BANDS] = {}; // Initializes to all zeros
+float bandValues[NUM_BANDS] = {};
 float vReal[SAMPLES];
 float vImag[SAMPLES];
+
+float currentBandEnergy[NUM_BANDS];
+float lastBandEnergy[NUM_BANDS];
+
 // int frame = 0;
 unsigned long newTime;
 
@@ -119,7 +133,8 @@ void setupI2S() {
     // delay(100);
 }
 
-void computeSpectrogram(int spectrogram[NUM_BANDS]) {
+void computeSpectrogram(float spectrogram[NUM_BANDS]) {
+
 
     for (int i = 0; i < NUM_BANDS; i++) {
         bandValues[i] = 0;
@@ -129,11 +144,13 @@ void computeSpectrogram(int spectrogram[NUM_BANDS]) {
     i2s_read(I2S_NUM, &buffer, sizeof(buffer), &bytes_read, portMAX_DELAY);
 
     for (int i = 0; i < SAMPLES; i++) {
-        vReal[i] = (float) abs(buffer[i] >> 16); // Shift and cast to 16-bit integer
+        vReal[i] = (float)abs(buffer[i] >> 16); // Shift and cast to 16-bit integer
         // vReal[i] = (float)(buffer[i]);
         vImag[i] = 0.0;
     }
 #else
+    float startSampleTime = micros() / 1000.0;
+
     // Sample the audio pin
     for (int i = 0; i < SAMPLES; i++) {
         newTime = micros();
@@ -141,8 +158,15 @@ void computeSpectrogram(int spectrogram[NUM_BANDS]) {
         vImag[i] = 0.0;
         while ((micros() - newTime) < sampling_period_us) { /* chill */ }
     }
+
+    float endSampleTime = micros() / 1000.0;
+    Serial.print("Sample time: ");
+    Serial.println(endSampleTime - startSampleTime);
 #endif
 
+#if DO_FFT
+
+    float startFFTTime = micros() / 1000.0;
 
     FFT.dcRemoval();
     FFT.windowing(FFTWindow::Hamming, FFTDirection::Forward);
@@ -164,33 +188,80 @@ void computeSpectrogram(int spectrogram[NUM_BANDS]) {
             // else if (hz > bandLimitsHz[5] && hz <= bandLimitsHz[6]) bandValues[6] += (int)vReal[i];
             // else if (hz > bandLimitsHz[6])                          bandValues[7] += (int)vReal[i];
 
-            if (hz <= bandLimitsHz[0])                              bandValues[0] += (int)vReal[i];
-            else if (hz > bandLimitsHz[0] && hz <= bandLimitsHz[1]) bandValues[1] += (int)vReal[i];
-            else if (hz > bandLimitsHz[1] && hz <= bandLimitsHz[2]) bandValues[2] += (int)vReal[i];
-            else if (hz > bandLimitsHz[2] && hz <= bandLimitsHz[3]) bandValues[3] += (int)vReal[i];
-            else if (hz > bandLimitsHz[3] && hz <= bandLimitsHz[4]) bandValues[4] += (int)vReal[i];
-            else if (hz > bandLimitsHz[4] && hz <= bandLimitsHz[5]) bandValues[5] += (int)vReal[i];
-            else if (hz > bandLimitsHz[6])                          bandValues[6] += (int)vReal[i];
-
+            if (hz <= bandLimitsHz[0])                              bandValues[0] += vReal[i];
+            else if (hz > bandLimitsHz[0] && hz <= bandLimitsHz[1]) bandValues[1] += vReal[i];
+            else if (hz > bandLimitsHz[1] && hz <= bandLimitsHz[2]) bandValues[2] += vReal[i];
+            else if (hz > bandLimitsHz[2] && hz <= bandLimitsHz[3]) bandValues[3] += vReal[i];
+            else if (hz > bandLimitsHz[3] && hz <= bandLimitsHz[4]) bandValues[4] += vReal[i];
+            else if (hz > bandLimitsHz[4] && hz <= bandLimitsHz[5]) bandValues[5] += vReal[i];
+            else if (hz > bandLimitsHz[5] && hz <= bandLimitsHz[6]) bandValues[6] += vReal[i];
+            else if (hz > bandLimitsHz[6])                          bandValues[7] += vReal[i];
         }
     }
 
-    uint16_t i = 0;
+    bandValues[0] = 0.0;
+    int bassMin = 20;
+    int bassMax = int(150 * scaleFactor);
+    for (uint16_t i = bassMin; i <= bassMax; i++) {
+        bandValues[0] += vReal[i];
+    }
+
+#else 
+    for (uint16_t i = 0; i < (SAMPLES >> 1); i++) {
+        bandValues[3] += vReal[i];
+    }
+#endif
 
     // Process the FFT data into bar heights
     for (int band = 0; band < NUM_BANDS; band++) {
 
         // Scale the bars for the display
-        int barHeight = bandValues[band] / AMPLITUDE;
+        float barHeight = bandValues[band] / AMPLITUDE;
         // if (barHeight > TOP) barHeight = TOP;
 
         // Small amount of averaging between frames
         if (USE_AVERAGING) {
-            barHeight = ((oldBarHeights[band] * 1) + barHeight) / 2;
+            barHeight = ((oldBarHeights[band] * 1.0) + barHeight) / 2.0;
         }
 
         // Save oldBarHeights for averaging later
         oldBarHeights[band] = barHeight;
         spectrogram[band] = barHeight;
     }
+
+    float endFFTTime = micros() / 1000.0;
+    Serial.print("FFT time: ");
+    Serial.println(endFFTTime - startFFTTime);
+
+}
+
+void calculateBandEnergies(float spectrogram[NUM_BANDS], float *bandEnergies) {
+  for (int i = 0; i < NUM_BANDS; i++) {
+    bandEnergies[i] = spectrogram[i] * spectrogram[i];
+  }
+}
+
+float calculateEntropyChange(float* current, float* last) {
+    float entropyChange = 0;
+    for (int i = 0; i < NUM_BANDS; i++) {
+        float diff = abs(current[i] - last[i]);
+        entropyChange += diff;
+    }
+    return entropyChange;
+}
+
+float computeBeatHeuristic(float spectrogram[NUM_BANDS]) {
+    // Calculate band energies and detect beat
+    
+    calculateBandEnergies(spectrogram, currentBandEnergy);
+    float entropyChange = calculateEntropyChange(currentBandEnergy, lastBandEnergy);
+
+    // if (entropy > entropyThreshold) {
+    //     Serial.println("Beat detected!");
+    // }
+
+    // Store current energies for the next loop iteration
+    memcpy(lastBandEnergy, currentBandEnergy, sizeof(lastBandEnergy));
+
+    return entropyChange;
 }

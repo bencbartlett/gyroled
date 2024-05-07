@@ -4,6 +4,7 @@
 #define NUM_BANDS 8
 
 void setupI2S();
-void computeSpectrogram(int spectrogram[NUM_BANDS]);
+void computeSpectrogram(float spectrogram[NUM_BANDS]);
+float computeBeatHeuristic(float spectrogram[NUM_BANDS]);
 
 #endif

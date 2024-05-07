@@ -48,9 +48,9 @@ int ring_3_midpoint_R = (int)(LED_COUNT_RING_3 * 0.75 + LED_COUNT_RING_2 + LED_C
 
 
 
-int peak[NUM_BANDS] = { };              // The length of these arrays must be >= NUM_BANDS
-int spectrogram[NUM_BANDS] = { };
-uint16_t bands[NUM_BANDS_MSQEQ7] = { };
+float peak[NUM_BANDS] = { };              // The length of these arrays must be >= NUM_BANDS
+float spectrogram[NUM_BANDS] = { };
+// uint16_t bands[NUM_BANDS_MSQEQ7] = { };
 // int oldBarHeights[NUM_BANDS];
 // int bandValues[NUM_BANDS];
 
@@ -105,7 +105,7 @@ void setup() {
   // Reset bandValues[]
   for (int i = 0; i < NUM_BANDS; i++) {
     // bandValues[i] = 0;
-    peak[i] = 0;
+    peak[i] = 0.;
     // oldBarHeights[i] = 0;
   }
 
@@ -114,7 +114,7 @@ void setup() {
   // setup_MSGEQ7_v2();
 #endif
 
-#if true
+#if false
   setupI2S();
 #endif
 
@@ -242,6 +242,7 @@ void loop() {
   // output += "Updates per second: ";
   output += updatesPerSecond;
   output += "\n";
+  // Serial.println(output);
 
   // if (millis() - lastSample > 10) {
 #if USE_MSGEQ7
@@ -309,6 +310,8 @@ void loop() {
     if (peak[band] > 0) peak[band] -= PEAK_DECAY_RATE;
   }
 
+  float beatHeuristic = computeBeatHeuristic(spectrogram);
+
 #if OUTPUT_TO_VISUALIZER
 
   String foo = "";
@@ -319,6 +322,8 @@ void loop() {
       foo += ",";
     }
   }
+  foo += ";";
+  foo += beatHeuristic;
   Serial.println(foo);
 
 #endif
@@ -331,7 +336,7 @@ void loop() {
 
 
 
-#if true
+#if false
   output += "noiseLevel: ";
   output += noiseLevel;
   output += "\n";
