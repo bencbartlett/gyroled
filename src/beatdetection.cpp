@@ -1,205 +1,63 @@
-// #include <Arduino.h>
+#include <Arduino.h>
+#include <algorithm>  // Include for std::nth_element and std::sort
+#include <cmath>      // Include for std::floor and std::ceil
 
-// long lastBeatTimestamp = 0;
-// long durationSinceLastBeat = 0;
-// float beatProbability = 0;
-// float beatProbabilityThreshold = 0.5;
-
+#include "fft.h"
 
 
-// /**
-//  * Will update the beat probability, a value between 0 and 1
-//  * indicating how likely it is that there's a beat right now.
-//  */
-// void updateBeatProbability() {
-//   beatProbability = 1;
-//   beatProbability *= calculateSignalChangeFactor();
-//   beatProbability *= calculateMagnitudeChangeFactor();
-//   beatProbability *= calculateVarianceFactor();
-//   beatProbability *= calculateRecencyFactor();
-  
-//   if (beatProbability >= beatProbabilityThreshold) {
-//     lastBeatTimestamp = millis();
-//     durationSinceLastBeat = 0;
-//   }
-  
-// //   logValue("B", beatProbability, 5);
-// }
+#define HEURISTIC_BUFFER_SIZE 2048  // at 30fps this is 68 seconds of context
 
-// /**
-//  * Will calculate a value in range [0:2] based on the magnitude changes of
-//  * different frequency bands.
-//  * Low values are indicating a low beat probability.
-//  */
-// float calculateSignalChangeFactor() {
-//   float aboveAverageSignalFactor;
-//   if (averageSignal < 75 || currentSignal < 150) {
-//     aboveAverageSignalFactor = 0;
-//   } else {
-//     aboveAverageSignalFactor = ((float) currentSignal / averageSignal);
-//     aboveAverageSignalFactor = constrain(aboveAverageSignalFactor, 0, 2);
-//   }
-//   return aboveAverageSignalFactor;
-// }
+float heuristicsBuffer[HEURISTIC_BUFFER_SIZE] = {};
+uint16_t heuristicsBufferIndex = 0;
+float bufferCopy[HEURISTIC_BUFFER_SIZE] = {};
 
-// /**
-//  * Will calculate a value in range [0:1] based on the magnitude changes of
-//  * different frequency bands.
-//  * Low values are indicating a low beat probability.
-//  */
-// float calculateMagnitudeChangeFactor() {
-//   float changeThresholdFactor = 1.1;
-//   if (durationSinceLastBeat < 750) {
-//     // attempt to not miss consecutive beats
-//     changeThresholdFactor *= 0.95;
-//   } else if (durationSinceLastBeat > 1000) {
-//     // reduce false-positives
-//     changeThresholdFactor *= 1.05;
-//   }
-  
-//   // current overall magnitude is higher than the average, probably 
-//   // because the signal is mainly noise
-//   float aboveAverageOverallMagnitudeFactor = ((float) currentOverallFrequencyMagnitude / averageOverallFrequencyMagnitude);
-//   aboveAverageOverallMagnitudeFactor -= 1.05;
-//   aboveAverageOverallMagnitudeFactor *= 10;
-//   aboveAverageOverallMagnitudeFactor = constrain(aboveAverageOverallMagnitudeFactor, 0, 1);
-  
-//   // current magnitude is higher than the average, probably 
-//   // because the there's a beat right now
-//   float aboveAverageFirstMagnitudeFactor = ((float) currentFirstFrequencyMagnitude / averageFirstFrequencyMagnitude);
-//   aboveAverageOverallMagnitudeFactor -= 0.1;
-//   aboveAverageFirstMagnitudeFactor *= 1.5;
-//   aboveAverageFirstMagnitudeFactor = pow(aboveAverageFirstMagnitudeFactor, 3);
-//   aboveAverageFirstMagnitudeFactor /= 3;
-//   aboveAverageFirstMagnitudeFactor -= 1.25;
-  
-//   aboveAverageFirstMagnitudeFactor = constrain(aboveAverageFirstMagnitudeFactor, 0, 1);
-  
-//   float aboveAverageSecondMagnitudeFactor = ((float) currentSecondFrequencyMagnitude / averageSecondFrequencyMagnitude);
-//   aboveAverageSecondMagnitudeFactor -= 1.01;
-//   aboveAverageSecondMagnitudeFactor *= 10;
-//   aboveAverageSecondMagnitudeFactor = constrain(aboveAverageSecondMagnitudeFactor, 0, 1);
-  
-//   float magnitudeChangeFactor = aboveAverageFirstMagnitudeFactor;
-//   if (magnitudeChangeFactor > 0.15) {
-//     magnitudeChangeFactor = max(aboveAverageFirstMagnitudeFactor, aboveAverageSecondMagnitudeFactor);
-//   }
-  
-//   if (magnitudeChangeFactor < 0.5 && aboveAverageOverallMagnitudeFactor > 0.5) {
-//     // there's no bass related beat, but the overall magnitude changed significantly
-//     magnitudeChangeFactor = max(magnitudeChangeFactor, aboveAverageOverallMagnitudeFactor);
-//   } else {
-//     // this is here to avoid treating signal noise as beats
-//     //magnitudeChangeFactor *= 1 - aboveAverageOverallMagnitudeFactor;
-//   }
-  
-//   return magnitudeChangeFactor;
-// }
+float spectrumFiltered[SAMPLES / 2] = {};
+float spectrumFilteredPrev[SAMPLES / 2] = {};
 
-// /**
-//  * Will calculate a value in range [0:1] based on variance in the first and second
-//  * frequency band over time. The variance will be high if the magnitude of bass
-//  * frequencies changed in the last few milliseconds.
-//  * Low values are indicating a low beat probability.
-//  */
-// float calculateVarianceFactor() {
-//   // a beat also requires a high variance in recent frequency magnitudes
-//   float firstVarianceFactor = ((float) (firstFrequencyMagnitudeVariance - 50) / 20) - 1;
-//   firstVarianceFactor = constrain(firstVarianceFactor, 0, 1);
-  
-//   float secondVarianceFactor = ((float) (secondFrequencyMagnitudeVariance - 50) / 20) - 1;
-//   secondVarianceFactor = constrain(secondVarianceFactor, 0, 1);
-  
-//   float varianceFactor = max(firstVarianceFactor, secondVarianceFactor);
-  
-//   logValue("V", varianceFactor, 1);
-  
-//   return varianceFactor;
-// }
+const int MAXIMUM_BEATS_PER_MINUTE = 180;
+const int MINIMUM_DELAY_BETWEEN_BEATS = 60000L / MAXIMUM_BEATS_PER_MINUTE;
+const int SINGLE_BEAT_DURATION = 100; // good value range is [50:150]
 
-// /**
-//  * Will calculate a value in range [0:1] based on the recency of the last detected beat.
-//  * Low values are indicating a low beat probability.
-//  */
-// float calculateRecencyFactor() {
-//   float recencyFactor = 1;
-//   durationSinceLastBeat = millis() - lastBeatTimestamp;
-  
-//   int referenceDuration = MINIMUM_DELAY_BETWEEN_BEATS - SINGLE_BEAT_DURATION;
-//   recencyFactor = 1 - ((float) referenceDuration / durationSinceLastBeat);
-//   recencyFactor = constrain(recencyFactor, 0, 1);
-  
-//   //logValue("R", recencyFactor, 5);
-  
-//   return recencyFactor;
-// }
+unsigned long lastBeatTimestamp = 0;
+
+float calculateRecencyFactor() {
+  unsigned long durationSinceLastBeat = millis() - lastBeatTimestamp;
+  int referenceDuration = MINIMUM_DELAY_BETWEEN_BEATS - SINGLE_BEAT_DURATION;
+  // float recencyFactor = constrain(1 - (float(referenceDuration) / durationSinceLastBeat), 0.0, 1.0);
+  float recencyFactor = constrain(float(durationSinceLastBeat) / referenceDuration, 0.0, 1.0);
+  return recencyFactor;
+}
 
 
-
-// void processHistoryValues(byte history[], int &historyIndex, int &current, int &total, int &average, int &variance) {
-//   total -= history[historyIndex]; // subtract the oldest history value from the total
-//   total += (byte) current; // add the current value to the total
-//   history[historyIndex] = current; // add the current value to the history
-  
-//   average = total / FREQUENCY_MAGNITUDE_SAMPLES;
-  
-//   // update the variance of frequency magnitudes
-//   long squaredDifferenceSum = 0;
-//   for (int i = 0; i < FREQUENCY_MAGNITUDE_SAMPLES; i++) {
-//     squaredDifferenceSum += pow(history[i] - average, 2);
-//   }
-//   variance = (double) squaredDifferenceSum / FREQUENCY_MAGNITUDE_SAMPLES;
-// }
+float computePercentile(float buffer[HEURISTIC_BUFFER_SIZE], float percentile) {
+  // Calculate the index corresponding to the percentile
+  int index = static_cast<int>(std::ceil(percentile / 100.0 * HEURISTIC_BUFFER_SIZE) - 1);
+  index = std::max(0, std::min(index, HEURISTIC_BUFFER_SIZE - 1));
+  // Create a copy of the buffer to avoid modifying the original
+  memcpy(bufferCopy, buffer, sizeof(buffer));
+  // Use std::nth_element to rearrange elements
+  std::nth_element(bufferCopy, bufferCopy + index, bufferCopy + HEURISTIC_BUFFER_SIZE);
+  // Return the element at the index
+  return bufferCopy[index];
+}
 
 
-// void processFrequencyData() {
-//   // each of the methods below will:
-//   //  - get the current frequency magnitude
-//   //  - add the current magnitude to the history
-//   //  - update relevant features
-//   processOverallFrequencyMagnitude();
-//   processFirstFrequencyMagnitude();
-//   processSecondFrequencyMagnitude();
-  
-//   // prepare the magnitude sample index for the next update
-//   frequencyMagnitudeSampleIndex += 1;
-//   if (frequencyMagnitudeSampleIndex >= FREQUENCY_MAGNITUDE_SAMPLES) {
-//     frequencyMagnitudeSampleIndex = 0; // wrap the index
-//   }
-// }
+float computeBeatHeuristic(float fftResults[SAMPLES]) {
 
-// void processFirstFrequencyMagnitude() {
-//   currentFirstFrequencyMagnitude = getFrequencyMagnitude(
-//     fht_log_out, 
-//     FIRST_FREQUENCY_RANGE_START, 
-//     FIRST_FREQUENCY_RANGE_END
-//   );
-  
-//   processHistoryValues(
-//     firstFrequencyMagnitudes, 
-//     frequencyMagnitudeSampleIndex, 
-//     currentFirstFrequencyMagnitude, 
-//     totalFirstFrequencyMagnitude, 
-//     averageFirstFrequencyMagnitude, 
-//     firstFrequencyMagnitudeVariance
-//   );
-// }
+  applyKickDrumIsolationFilter(spectrumFiltered);
+  float entropyChange = calculateEntropyChange(spectrumFiltered, spectrumFilteredPrev);
+  float heuristic = entropyChange * calculateRecencyFactor();
 
-// void processSecondFrequencyMagnitude() {
-//   currentSecondFrequencyMagnitude = getFrequencyMagnitude(
-//     fht_log_out, 
-//     SECOND_FREQUENCY_RANGE_START, 
-//     SECOND_FREQUENCY_RANGE_END
-//   );
-  
-//   processHistoryValues(
-//     secondFrequencyMagnitudes, 
-//     frequencyMagnitudeSampleIndex, 
-//     currentSecondFrequencyMagnitude, 
-//     totalSecondFrequencyMagnitude, 
-//     averageSecondFrequencyMagnitude, 
-//     secondFrequencyMagnitudeVariance
-//   );
-// }
+  // If the heuristic is above some percentile of the buffer, we have a beat
+  float fudgeFactor = 1.3;
+  float percentile = (1.0 - fudgeFactor * (1./30. * MAXIMUM_BEATS_PER_MINUTE / 60.)) * 100;
+  float heuristicThreshold = computePercentile(heuristicsBuffer, percentile);
+  if (heuristic > heuristicThreshold) {
+    lastBeatTimestamp = millis();
+  }
 
+  heuristicsBuffer[heuristicsBufferIndex] = heuristic;
+  heuristicsBufferIndex = (heuristicsBufferIndex + 1) % HEURISTIC_BUFFER_SIZE;
 
+  return heuristic;
+}

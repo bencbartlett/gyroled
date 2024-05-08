@@ -3,6 +3,7 @@
 #include <ESP32Servo.h>
 
 #include "fft.h"
+#include "beatdetection.h"
 // #include "MSGEQ7.h"
 
 #define LED_PIN         32
@@ -100,7 +101,7 @@ void setup() {
   servo2.attach(SERVO_2_PIN, 500, 2400);
   servo3.attach(SERVO_3_PIN, 500, 2400);
 
-
+  setupAsyncSampling(); // Setup the ADC for async sampling
 
   // Reset bandValues[]
   for (int i = 0; i < NUM_BANDS; i++) {
@@ -230,6 +231,8 @@ void colorWipe(uint32_t color, int wait) {
 
 
 void loop() {
+
+  delay(10);
 
   frame++;
 
