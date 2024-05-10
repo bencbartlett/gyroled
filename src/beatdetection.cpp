@@ -14,11 +14,19 @@ float bufferCopy[HEURISTIC_BUFFER_SIZE] = {};
 float spectrumFiltered[SAMPLES / 2] = {};
 float spectrumFilteredPrev[SAMPLES / 2] = {};
 
-const int MAXIMUM_BEATS_PER_MINUTE = 180;
+const int MAXIMUM_BEATS_PER_MINUTE = 185;
+const int TYPICAL_BEATS_PER_MINUTE = 126;
 const int MINIMUM_DELAY_BETWEEN_BEATS = 60000L / MAXIMUM_BEATS_PER_MINUTE;
 const int SINGLE_BEAT_DURATION = 100; // good value range is [50:150]
 
 unsigned long lastBeatTimestamp = 0;
+unsigned long elapsedBeats = 0;
+
+const float alpha_short = 1.0/(30.0 * 5.0); // roughly 5 seconds
+const float alpha_long = 1.0/(30.0 * 60.0); // roughly 60 seconds
+float heuristic_ema = 0.0;
+
+bool bufferInitialized = false;
 
 float calculateRecencyFactor() {
   unsigned long durationSinceLastBeat = millis() - lastBeatTimestamp;
@@ -48,12 +56,24 @@ float computeBeatHeuristic(float fftResults[SAMPLES]) {
   float entropyChange = calculateEntropyChange(spectrumFiltered, spectrumFilteredPrev);
   float heuristic = entropyChange * calculateRecencyFactor();
 
+  // Update the EMA
+  if (millis() < 10000) {
+    heuristic_ema = alpha_short * heuristic + (1 - alpha_short) * heuristic_ema;
+  } else {
+    heuristic_ema = alpha_long * heuristic + (1 - alpha_long) * heuristic_ema;
+  }
+  
+
+
   // If the heuristic is above some percentile of the buffer, we have a beat
-  float fudgeFactor = 1.3;
+  float fudgeFactor = 1.25;
   float percentile = (1.0 - fudgeFactor * (1./30. * MAXIMUM_BEATS_PER_MINUTE / 60.)) * 100;
   float heuristicThreshold = computePercentile(heuristicsBuffer, percentile);
+
+  // float heuristicThreshold = 1.5 * heuristic_ema;
   if (heuristic > heuristicThreshold) {
     lastBeatTimestamp = millis();
+    elapsedBeats++;
   }
 
   heuristicsBuffer[heuristicsBufferIndex] = heuristic;

@@ -232,7 +232,7 @@ void colorWipe(uint32_t color, int wait) {
 
 void loop() {
 
-  delay(10);
+  delay(1);
 
   frame++;
 
@@ -241,10 +241,10 @@ void loop() {
 
 
 
-  String output = "";
+  // String output = "";
   // output += "Updates per second: ";
-  output += updatesPerSecond;
-  output += "\n";
+  // output += updatesPerSecond;
+  // output += "\n";
   // Serial.println(output);
 
   // if (millis() - lastSample > 10) {
@@ -339,10 +339,10 @@ void loop() {
 
 
 
-#if false
-  output += "noiseLevel: ";
-  output += noiseLevel;
-  output += "\n";
+#if true
+  // output += "noiseLevel: ";
+  // output += noiseLevel;
+  // output += "\n";
 
 
 
@@ -371,7 +371,7 @@ void loop() {
 
   strip.show();
 
-  Serial.print(output);
+  // Serial.print(output);
   // delay(10);
 
 #endif // OUTPUT_TO_VISUALIZER
