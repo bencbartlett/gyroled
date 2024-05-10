@@ -6,3 +6,6 @@
 .vscode/ipch
 .DS_Store
 /lib/ignore
+
+*.xcodeproj
+**/*.xcodeproj
