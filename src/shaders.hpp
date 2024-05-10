@@ -79,8 +79,8 @@ public:
 class ShaderManager {
 private:
     Adafruit_NeoPixel& strip;
-    std::map<String, Shader*> shaders;
 public:
+	std::map<String, Shader*> shaders;
 	Shader* activeShader = nullptr;
     ShaderManager(Adafruit_NeoPixel& ledStrip) : strip(ledStrip) {
 		std::vector<Shader*> shaderList = {
@@ -104,9 +104,10 @@ public:
         }
     }
 
-    void setActiveShader(String shaderName) {
-        if (shaders.find(shaderName) != shaders.end()) {
-            activeShader = shaders[shaderName];
+    void setActiveShader(const String& shaderName) {
+        auto it = shaders.find(shaderName);
+        if (it != shaders.end()) {
+            activeShader = it->second;
         } else {
             Serial.println("Shader not found");
         }

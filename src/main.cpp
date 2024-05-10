@@ -6,6 +6,9 @@
 #include "beatdetection.h"
 #include "bluetooth.h"
 
+#include "shaders.hpp"
+
+
 #define BLUETOOTH_DEBUG_MODE false
 
 #define LED_PIN         32
@@ -58,19 +61,13 @@ int frame = 0;
 float updatesPerSecond = 0.0;
 
 Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_RGBW + NEO_KHZ800);
+ShaderManager shaderManager(strip);
 
 Servo servo1;
 Servo servo2;
 Servo servo3;
 
-int head = 10;
-int tail = -1; // Start outside of any valid range
-int loops = 3;
-int loopNum = 0;
-uint32_t lastTime = 0;
-uint32_t firstPixelHue = 0;
-const int whiteSpeed = 5; // Speed of white light moving
-const int whiteLength = 30; // Length of the white light
+
 bool updateServo = true; // Flag to control servo update
 unsigned long lastServoUpdate = 0;
 unsigned long lastSample = 0;
@@ -81,7 +78,7 @@ void setup() {
 
 #if BLUETOOTH_DEBUG_MODE
 	Serial.begin(115200);
-	setup_bluetooth();
+	setupBluetooth();
 #else
 
 	Serial.begin(115200);
@@ -112,7 +109,7 @@ void setup() {
 		// oldBarHeights[i] = 0;
 	}
 
-	setup_bluetooth();
+	setupBluetooth();
 
 #if USE_MSGEQ7
 	setup_MSGEQ7();
@@ -133,62 +130,14 @@ void setup() {
  * =====================================================================================
  */
 
-void whiteOverRainbow() {
-	if (whiteLength >= strip.numPixels()) return; // Error handling
 
-	for (int i = 0; i < strip.numPixels(); i++) {
-		if (((i >= tail) && (i <= head)) || ((tail > head) && ((i >= tail) || (i <= head)))) {
-			strip.setPixelColor(i, strip.Color(255, 255, 255, 255)); // Set white
-		}
-		else {
-			int pixelHue = firstPixelHue + (i * 65536L / strip.numPixels());
-			strip.setPixelColor(i, strip.gamma32(strip.ColorHSV(pixelHue)));
-		}
-	}
-
-	// strip.show();
-	firstPixelHue += 40;
-
-	if ((millis() - lastTime) > whiteSpeed) {
-		if (++head >= strip.numPixels()) {
-			head = 0;
-			if (++loopNum >= loops) loopNum = 0; // Reset loopNum instead of return
-		}
-		if (++tail >= strip.numPixels()) {
-			tail = 0;
-		}
-		lastTime = millis();
-	}
-}
 
 int clip255(int value) {
 	// Ensure the value is not less than minVal and not greater than maxVal
 	return std::min(std::max(value, 0), 255);
 }
 
-void loopyRainbow() {
-	int fadeVal = 0, fadeMax = 100;
-	fadeVal = 100;
 
-	for (int i = 0; i < strip.numPixels(); i++) { // For each pixel in strip...
-
-		// Offset pixel hue by an amount to make one full revolution of the
-		// color wheel (range of 65536) along the length of the strip
-		// (strip.numPixels() steps):
-		uint32_t pixelHue = frame * 1000 + (i * 65536L / strip.numPixels());
-
-		// strip.ColorHSV() can take 1 or 3 arguments: a hue (0 to 65535) or
-		// optionally add saturation and value (brightness) (each 0 to 255).
-		// Here we're using just the three-argument variant, though the
-		// second value (saturation) is a constant 255.
-		uint32_t rgb = strip.gamma32(strip.ColorHSV(pixelHue, 255, 255 * fadeVal / fadeMax));
-		// Extract RGB values from the RGB color
-		// uint8_t r = (uint8_t)(rgb >> 16), g = (uint8_t)(rgb >> 8), b = (uint8_t)rgb;
-		// uint8_t w = clip255(noiseLevel * 3);
-		// strip.setPixelColor(i, r, g, b, w);
-		strip.setPixelColor(i, strip.gamma32(strip.ColorHSV(pixelHue, 255, 255 * fadeVal / fadeMax)));
-	}
-}
 
 void applyWhiteBars(int noiseLevel) {
 	int factor = 0.95;
@@ -303,9 +252,8 @@ void loop() {
 #endif // RUN_SERVOS
 
 #if RUN_LEDS
-	// pulseWhiteAndRGB();
-	// whiteOverRainbow(); // Update LEDs
-	loopyRainbow();
+
+	shaderManager.activeShader->update(frame);
 	applyWhiteBars(noiseLevel);
 
 	strip.show();

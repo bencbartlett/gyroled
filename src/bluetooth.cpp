@@ -2,12 +2,13 @@
 #include <BLEDevice.h>
 #include <BLEUtils.h>
 #include <BLEServer.h>
+#include "shaders.hpp"
 
 // UUIDs for BLE service and characteristic
 #define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
 #define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
 
-// Variable to store the received value
+extern ShaderManager shaderManager;
 String receivedValue = "None";
 
 class MyCallbacks : public BLECharacteristicCallbacks {
@@ -18,10 +19,13 @@ class MyCallbacks : public BLECharacteristicCallbacks {
 			Serial.println("Received Value: ");
 			for (int i = 0; i < value.length(); i++)
 				Serial.print(value[i]);
-
 			Serial.println();
+
 			// Update the receivedValue with the new value
 			receivedValue = value.c_str();
+
+			// Set the active shader based on received value
+			shaderManager.setActiveShader(receivedValue);
 		}
 	}
 };
@@ -58,7 +62,7 @@ void bluetoothTask(void* args) {
 	}
 }
 
-void setup_bluetooth() {
+void setupBluetooth() {
 	// Create a task that will handle initializing and running the BLE functionality
 	TaskHandle_t bluetoothTaskHandle;
 	xTaskCreatePinnedToCore(
