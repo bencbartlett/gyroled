@@ -7,7 +7,7 @@
 void setupAsyncSampling();
 void setupI2S();
 void computeSpectrogram(float spectrogram[NUM_BANDS]);
-void applyKickDrumIsolationFilter(float spectrumFiltered[SAMPLES/2]);
-float calculateEntropyChange(float spectrumFiltered[SAMPLES/2], float spectrumFilteredPrev[SAMPLES/2]);
+void applyKickDrumIsolationFilter(float spectrumFiltered[SAMPLES / 2]);
+float calculateEntropyChange(float spectrumFiltered[SAMPLES / 2], float spectrumFilteredPrev[SAMPLES / 2]);
 
 #endif

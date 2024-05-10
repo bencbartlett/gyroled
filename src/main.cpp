@@ -5,7 +5,6 @@
 #include "fft.h"
 #include "beatdetection.h"
 #include "bluetooth.h"
-// #include "MSGEQ7.h"
 
 #define BLUETOOTH_DEBUG_MODE false
 
@@ -29,10 +28,10 @@
 #define NUM_BANDS       8             // To change this, you will need to change the bunch of if statements describing the mapping from bins to bands
 #define NUM_BANDS_MSQEQ7 7
 #define NOISE           20           // Used as a crude noise filter, values below this are ignored
-// #define TOP             16
 #define PEAK_DECAY_RATE 5
 #define NOISE_EMA_ALPHA 0.02        // At about 25fps this is about a 2 second window
-
+#define RUN_LEDS true
+#define RUN_SERVOS true
 #define OUTPUT_TO_VISUALIZER true
 #define USE_MSGEQ7 false
 
@@ -50,13 +49,8 @@ int ring_2_midpoint_R = (int)(LED_COUNT_RING_2 * 0.75 + LED_COUNT_RING_1 - 1); /
 int ring_3_midpoint_L = (int)(LED_COUNT_RING_3 * 0.25 + LED_COUNT_RING_2 + LED_COUNT_RING_1);
 int ring_3_midpoint_R = (int)(LED_COUNT_RING_3 * 0.75 + LED_COUNT_RING_2 + LED_COUNT_RING_1);
 
-
-
 float peak[NUM_BANDS] = { };              // The length of these arrays must be >= NUM_BANDS
 float spectrogram[NUM_BANDS] = { };
-// uint16_t bands[NUM_BANDS_MSQEQ7] = { };
-// int oldBarHeights[NUM_BANDS];
-// int bandValues[NUM_BANDS];
 
 int noiseLevel = 0;
 int frame = 0;
@@ -86,47 +80,47 @@ unsigned long lastUpdate = 0;
 void setup() {
 
 #if BLUETOOTH_DEBUG_MODE
-  Serial.begin(115200);
-  setup_bluetooth();
+	Serial.begin(115200);
+	setup_bluetooth();
 #else
 
-  Serial.begin(115200);
+	Serial.begin(115200);
 
-  strip.begin();
-  strip.clear();
-  strip.show();
-  strip.setBrightness(BRIGHTNESS);
+	strip.begin();
+	strip.clear();
+	strip.show();
+	strip.setBrightness(BRIGHTNESS);
 
-  ESP32PWM::allocateTimer(0);
-  ESP32PWM::allocateTimer(1);
-  ESP32PWM::allocateTimer(2);
-  ESP32PWM::allocateTimer(3);
-  servo1.setPeriodHertz(50);    // standard 50 hz servo
-  servo2.setPeriodHertz(50);
-  servo3.setPeriodHertz(50);
+	ESP32PWM::allocateTimer(0);
+	ESP32PWM::allocateTimer(1);
+	ESP32PWM::allocateTimer(2);
+	ESP32PWM::allocateTimer(3);
+	servo1.setPeriodHertz(50);    // standard 50 hz servo
+	servo2.setPeriodHertz(50);
+	servo3.setPeriodHertz(50);
 
-  servo1.attach(SERVO_1_PIN, 500, 2400);
-  servo2.attach(SERVO_2_PIN, 500, 2400);
-  servo3.attach(SERVO_3_PIN, 500, 2400);
+	servo1.attach(SERVO_1_PIN, 500, 2400);
+	servo2.attach(SERVO_2_PIN, 500, 2400);
+	servo3.attach(SERVO_3_PIN, 500, 2400);
 
-  setupAsyncSampling(); // Setup the ADC for async sampling
+	setupAsyncSampling(); // Setup the ADC for async sampling
 
-  // Reset bandValues[]
-  for (int i = 0; i < NUM_BANDS; i++) {
-    // bandValues[i] = 0;
-    peak[i] = 0.;
-    // oldBarHeights[i] = 0;
-  }
+	// Reset bandValues[]
+	for (int i = 0; i < NUM_BANDS; i++) {
+		// bandValues[i] = 0;
+		peak[i] = 0.;
+		// oldBarHeights[i] = 0;
+	}
 
-  setup_bluetooth();
+	setup_bluetooth();
 
 #if USE_MSGEQ7
-  setup_MSGEQ7();
-  // setup_MSGEQ7_v2();
+	setup_MSGEQ7();
+	// setup_MSGEQ7_v2();
 #endif
 
 #if false
-  setupI2S();
+	setupI2S();
 #endif
 
 #endif // BLUETOOTH_DEBUG_MODE
@@ -140,260 +134,182 @@ void setup() {
  */
 
 void whiteOverRainbow() {
-  if (whiteLength >= strip.numPixels()) return; // Error handling
+	if (whiteLength >= strip.numPixels()) return; // Error handling
 
-  for (int i = 0; i < strip.numPixels(); i++) {
-    if (((i >= tail) && (i <= head)) || ((tail > head) && ((i >= tail) || (i <= head)))) {
-      strip.setPixelColor(i, strip.Color(255, 255, 255, 255)); // Set white
-    }
-    else {
-      int pixelHue = firstPixelHue + (i * 65536L / strip.numPixels());
-      strip.setPixelColor(i, strip.gamma32(strip.ColorHSV(pixelHue)));
-    }
-  }
+	for (int i = 0; i < strip.numPixels(); i++) {
+		if (((i >= tail) && (i <= head)) || ((tail > head) && ((i >= tail) || (i <= head)))) {
+			strip.setPixelColor(i, strip.Color(255, 255, 255, 255)); // Set white
+		}
+		else {
+			int pixelHue = firstPixelHue + (i * 65536L / strip.numPixels());
+			strip.setPixelColor(i, strip.gamma32(strip.ColorHSV(pixelHue)));
+		}
+	}
 
-  // strip.show();
-  firstPixelHue += 40;
+	// strip.show();
+	firstPixelHue += 40;
 
-  if ((millis() - lastTime) > whiteSpeed) {
-    if (++head >= strip.numPixels()) {
-      head = 0;
-      if (++loopNum >= loops) loopNum = 0; // Reset loopNum instead of return
-    }
-    if (++tail >= strip.numPixels()) {
-      tail = 0;
-    }
-    lastTime = millis();
-  }
+	if ((millis() - lastTime) > whiteSpeed) {
+		if (++head >= strip.numPixels()) {
+			head = 0;
+			if (++loopNum >= loops) loopNum = 0; // Reset loopNum instead of return
+		}
+		if (++tail >= strip.numPixels()) {
+			tail = 0;
+		}
+		lastTime = millis();
+	}
 }
 
 int clip255(int value) {
-  // Ensure the value is not less than minVal and not greater than maxVal
-  return std::min(std::max(value, 0), 255);
+	// Ensure the value is not less than minVal and not greater than maxVal
+	return std::min(std::max(value, 0), 255);
 }
 
 void loopyRainbow() {
-  int fadeVal = 0, fadeMax = 100;
-  fadeVal = 100;
+	int fadeVal = 0, fadeMax = 100;
+	fadeVal = 100;
 
-  for (int i = 0; i < strip.numPixels(); i++) { // For each pixel in strip...
+	for (int i = 0; i < strip.numPixels(); i++) { // For each pixel in strip...
 
-    // Offset pixel hue by an amount to make one full revolution of the
-    // color wheel (range of 65536) along the length of the strip
-    // (strip.numPixels() steps):
-    uint32_t pixelHue = frame * 1000 + (i * 65536L / strip.numPixels());
+		// Offset pixel hue by an amount to make one full revolution of the
+		// color wheel (range of 65536) along the length of the strip
+		// (strip.numPixels() steps):
+		uint32_t pixelHue = frame * 1000 + (i * 65536L / strip.numPixels());
 
-    // strip.ColorHSV() can take 1 or 3 arguments: a hue (0 to 65535) or
-    // optionally add saturation and value (brightness) (each 0 to 255).
-    // Here we're using just the three-argument variant, though the
-    // second value (saturation) is a constant 255.
-    uint32_t rgb = strip.gamma32(strip.ColorHSV(pixelHue, 255, 255 * fadeVal / fadeMax));
-    // Extract RGB values from the RGB color
-    // uint8_t r = (uint8_t)(rgb >> 16), g = (uint8_t)(rgb >> 8), b = (uint8_t)rgb;
-    // uint8_t w = clip255(noiseLevel * 3);
-    // strip.setPixelColor(i, r, g, b, w);
-    strip.setPixelColor(i, strip.gamma32(strip.ColorHSV(pixelHue, 255, 255 * fadeVal / fadeMax)));
-  }
+		// strip.ColorHSV() can take 1 or 3 arguments: a hue (0 to 65535) or
+		// optionally add saturation and value (brightness) (each 0 to 255).
+		// Here we're using just the three-argument variant, though the
+		// second value (saturation) is a constant 255.
+		uint32_t rgb = strip.gamma32(strip.ColorHSV(pixelHue, 255, 255 * fadeVal / fadeMax));
+		// Extract RGB values from the RGB color
+		// uint8_t r = (uint8_t)(rgb >> 16), g = (uint8_t)(rgb >> 8), b = (uint8_t)rgb;
+		// uint8_t w = clip255(noiseLevel * 3);
+		// strip.setPixelColor(i, r, g, b, w);
+		strip.setPixelColor(i, strip.gamma32(strip.ColorHSV(pixelHue, 255, 255 * fadeVal / fadeMax)));
+	}
 }
 
 void applyWhiteBars(int noiseLevel) {
-  int factor = 0.95;
-  int amp = noiseLevel - avgNoise * factor > 0 ? (noiseLevel - avgNoise * factor) * 1 : 0;
-  if (amp > 0) {
-    strip.fill(strip.Color(255, 255, 255, 255), ring_1_midpoint_L - amp, 2 * amp);
-    strip.fill(strip.Color(255, 255, 255, 255), ring_1_midpoint_R - amp, 2 * amp);
-    strip.fill(strip.Color(255, 255, 255, 255), ring_2_midpoint_L - amp, 2 * amp);
-    strip.fill(strip.Color(255, 255, 255, 255), ring_2_midpoint_R - amp, 2 * amp);
-    strip.fill(strip.Color(255, 255, 255, 255), ring_3_midpoint_L - amp, 2 * amp);
-    strip.fill(strip.Color(255, 255, 255, 255), ring_3_midpoint_R - amp, 2 * amp);
-  }
-
-
-  // for(int i=0; i<noiseLevel; i++) { 
-  //   strip.setPixelColor(i, strip.Color(255, 255, 255, 255)); 
-  // }
+	int factor = 0.95;
+	int amp = noiseLevel - avgNoise * factor > 0 ? (noiseLevel - avgNoise * factor) * 1 : 0;
+	if (amp > 0) {
+		strip.fill(strip.Color(255, 255, 255, 255), ring_1_midpoint_L - amp, 2 * amp);
+		strip.fill(strip.Color(255, 255, 255, 255), ring_1_midpoint_R - amp, 2 * amp);
+		strip.fill(strip.Color(255, 255, 255, 255), ring_2_midpoint_L - amp, 2 * amp);
+		strip.fill(strip.Color(255, 255, 255, 255), ring_2_midpoint_R - amp, 2 * amp);
+		strip.fill(strip.Color(255, 255, 255, 255), ring_3_midpoint_L - amp, 2 * amp);
+		strip.fill(strip.Color(255, 255, 255, 255), ring_3_midpoint_R - amp, 2 * amp);
+	}
 }
 
 
 void pulseWhiteAndRGB() {
-  int wait = 5;
-  for (int j = 0; j < 256; j++) { // Ramp up from 0 to 255
-    // Fill entire strip with white at gamma-corrected brightness level 'j':
-    strip.fill(strip.Color(strip.gamma8(j), strip.gamma8(j), strip.gamma8(j), strip.gamma8(j)));
-    strip.show();
-    delay(wait);
-  }
+	int wait = 5;
+	for (int j = 0; j < 256; j++) { // Ramp up from 0 to 255
+		// Fill entire strip with white at gamma-corrected brightness level 'j':
+		strip.fill(strip.Color(strip.gamma8(j), strip.gamma8(j), strip.gamma8(j), strip.gamma8(j)));
+		strip.show();
+		delay(wait);
+	}
 
-  for (int j = 255; j >= 0; j--) { // Ramp down from 255 to 0
-    strip.fill(strip.Color(strip.gamma8(j), strip.gamma8(j), strip.gamma8(j), strip.gamma8(j)));
-    strip.show();
-    delay(wait);
-  }
+	for (int j = 255; j >= 0; j--) { // Ramp down from 255 to 0
+		strip.fill(strip.Color(strip.gamma8(j), strip.gamma8(j), strip.gamma8(j), strip.gamma8(j)));
+		strip.show();
+		delay(wait);
+	}
 }
 
 
 void colorWipe(uint32_t color, int wait) {
-  for (int i = 0; i < strip.numPixels(); i++) { // For each pixel in strip...
-    strip.setPixelColor(i, color);         //  Set pixel's color (in RAM)
-    strip.show();                          //  Update strip to match
-    delay(wait);                           //  Pause for a moment
-  }
+	for (int i = 0; i < strip.numPixels(); i++) { // For each pixel in strip...
+		strip.setPixelColor(i, color);         //  Set pixel's color (in RAM)
+		strip.show();                          //  Update strip to match
+		delay(wait);                           //  Pause for a moment
+	}
 }
 
 
 
 void loop() {
-
 #if BLUETOOTH_DEBUG_MODE
-  delay(500); 
-  Serial.println(receivedValue);  // Use the receivedValue from bluetooth.cpp
-
+	delay(500);
+	Serial.println(receivedValue);  // Use the receivedValue from bluetooth.cpp
 #else
+	delay(1);
 
-  delay(1);
+	frame++;
 
-  frame++;
-
-  Serial.print("Received Value: ");
-  Serial.println(receivedValue);  // Use the receivedValue from bluetooth.cpp
-
-
-  updatesPerSecond = 1000.0 / float(millis() - lastUpdate);
-  lastUpdate = millis();
-  Serial.print("Updates per second: ");
-  Serial.println(updatesPerSecond);
+	Serial.print("Received Value: ");
+	Serial.println(receivedValue);  // Use the receivedValue from bluetooth.cpp
 
 
-  // if (millis() - lastSample > 10) {
-#if USE_MSGEQ7
-  // noiseLevel = frame % 2 == 0 ? 0 : 100;
+	updatesPerSecond = 1000.0 / float(millis() - lastUpdate);
+	lastUpdate = millis();
+	Serial.print("Updates per second: ");
+	Serial.println(updatesPerSecond);
 
-  lastSample = millis();
-  recordSpectrogramMSGEQ7(bands);
-  // recordSpectrogramMSGEQ7_v2(bands);
-  // printSpectrogramMSGEQ7(bands);
+	lastSample = millis();
+	computeSpectrogram(spectrogram);
+	// Process the FFT data into bar heights
+	for (int band = 0; band < NUM_BANDS; band++) {
+		// Move peak up
+		if (spectrogram[band] > peak[band]) {
+			// peak[band] = min(TOP, barHeight);
+			peak[band] = spectrogram[band];
+		}
+	}
 
-  // Process the FFT data into bar heights
-  for (int band = 0; band < NUM_BANDS_MSQEQ7; band++) {
-    // Move peak up
-    if (int(bands[band]) > peak[band]) {
-      // peak[band] = min(TOP, barHeight);
-      peak[band] = bands[band];
-    }
-  }
+	noiseLevel = (peak[0] + peak[1] + peak[2] + peak[3]);
+	avgNoise = (NOISE_EMA_ALPHA * noiseLevel) + ((1 - NOISE_EMA_ALPHA) * avgNoise);
+	// noiseLevel = (oldBarHeights[1] + oldBarHeights[2] + oldBarHeights[3] + oldBarHeights[4]); // / (AMPLITUDE / 4);
 
-  // Decay peak
-  for (int band = 0; band < NUM_BANDS_MSQEQ7; band++) {
-    if (peak[band] > 0) peak[band] -= PEAK_DECAY_RATE;
-  }
+	// Decay peak
+	for (byte band = 0; band < NUM_BANDS; band++) {
+		if (peak[band] > 0) peak[band] -= PEAK_DECAY_RATE;
+	}
 
-  noiseLevel = (peak[0] + peak[1] + peak[2] + peak[3]);
-  avgNoise = (NOISE_EMA_ALPHA * noiseLevel) + ((1 - NOISE_EMA_ALPHA) * avgNoise);
-
+	float beatHeuristic = computeBeatHeuristic(spectrogram);
 
 #if OUTPUT_TO_VISUALIZER
-
-  String foo = "";
-  for (uint16_t i = 0; i < NUM_BANDS_MSQEQ7; i++) {
-    // Serial.println(bands[i]); // Send each frequency bin's magnitude
-    foo += bands[i];
-    if (i < NUM_BANDS_MSQEQ7 - 1) {
-      foo += ",";
-    }
-  }
-  Serial.println(foo);
-
-#endif
-
-
-#else
-
-  lastSample = millis();
-  computeSpectrogram(spectrogram);
-  // Process the FFT data into bar heights
-  for (int band = 0; band < NUM_BANDS; band++) {
-    // Move peak up
-    if (spectrogram[band] > peak[band]) {
-      // peak[band] = min(TOP, barHeight);
-      peak[band] = spectrogram[band];
-    }
-  }
-
-
-
-  noiseLevel = (peak[0] + peak[1] + peak[2] + peak[3]);
-  avgNoise = (NOISE_EMA_ALPHA * noiseLevel) + ((1 - NOISE_EMA_ALPHA) * avgNoise);
-  // noiseLevel = (oldBarHeights[1] + oldBarHeights[2] + oldBarHeights[3] + oldBarHeights[4]); // / (AMPLITUDE / 4);
-
-    // Decay peak
-  for (byte band = 0; band < NUM_BANDS; band++) {
-    if (peak[band] > 0) peak[band] -= PEAK_DECAY_RATE;
-  }
-
-  float beatHeuristic = computeBeatHeuristic(spectrogram);
-
-#if OUTPUT_TO_VISUALIZER
-
-  String foo = "[SPECTROGRAM]:";
-  for (uint16_t i = 0; i < NUM_BANDS; i++) {
-    // Serial.println(bands[i]); // Send each frequency bin's magnitude
-    foo += spectrogram[i];
-    if (i < NUM_BANDS - 1) {
-      foo += ",";
-    }
-  }
-  foo += ";";
-  foo += beatHeuristic;
-  Serial.println(foo);
-
-#endif
-#endif
-
-
-
-
-
-
-
-
-#if true
-  // output += "noiseLevel: ";
-  // output += noiseLevel;
-  // output += "\n";
-
-
-
-  if (updateServo) {
-    // Example servo movements
-    servo1.write((int)(90 + 90 * (servo_master_speed * servo1_speed)));
-    servo2.write((int)(90 + 90 * (servo_master_speed * servo2_speed)));
-    servo3.write((int)(90 + 90 * (servo_master_speed * servo3_speed)));
-    updateServo = false; // Prevent updating the servo in the next loop iteration
-    // Serial.println((int)(90 + 90 * (servo_master_speed * servo1_speed)));
-  }
-
-  // Simple non-blocking delay for servo update
-  if (millis() - lastServoUpdate > 1000 / SERVO_UPDATE_HZ) { // 1-second delay between servo updates
-    lastServoUpdate = millis();
-    updateServo = true;
-  }
-
-  // pulseWhiteAndRGB();
-
-  // whiteOverRainbow(); // Update LEDs
-
-  loopyRainbow();
-
-  applyWhiteBars(noiseLevel);
-
-  strip.show();
-
-  // Serial.print(output);
-  // delay(10);
-
+	String foo = "[SPECTROGRAM]:";
+	for (uint16_t i = 0; i < NUM_BANDS; i++) {
+		// Serial.println(bands[i]); // Send each frequency bin's magnitude
+		foo += spectrogram[i];
+		if (i < NUM_BANDS - 1) {
+			foo += ",";
+		}
+	}
+	foo += ";";
+	foo += beatHeuristic;
+	Serial.println(foo);
 #endif // OUTPUT_TO_VISUALIZER
 
+#if RUN_SERVOS
+	if (updateServo) {
+		// Example servo movements
+		servo1.write((int)(90 + 90 * (servo_master_speed * servo1_speed)));
+		servo2.write((int)(90 + 90 * (servo_master_speed * servo2_speed)));
+		servo3.write((int)(90 + 90 * (servo_master_speed * servo3_speed)));
+		updateServo = false; // Prevent updating the servo in the next loop iteration
+		// Serial.println((int)(90 + 90 * (servo_master_speed * servo1_speed)));
+	}
+
+	// Simple non-blocking delay for servo update
+	if (millis() - lastServoUpdate > 1000 / SERVO_UPDATE_HZ) { // 1-second delay between servo updates
+		lastServoUpdate = millis();
+		updateServo = true;
+	}
+#endif // RUN_SERVOS
+
+#if RUN_LEDS
+	// pulseWhiteAndRGB();
+	// whiteOverRainbow(); // Update LEDs
+	loopyRainbow();
+	applyWhiteBars(noiseLevel);
+
+	strip.show();
+#endif // RUN_LEDS
+
 #endif // BLUETOOTH_DEBUG_MODE
-
 }
-
