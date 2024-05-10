@@ -190,7 +190,15 @@ void setupAsyncSampling() {
     adc1_config_channel_atten(ADC_CHANNEL, ADC_ATTEN);
 #endif
     TaskHandle_t samplingTaskHandle;
-    xTaskCreatePinnedToCore(async_sampling, "async_sampling", 2048, NULL, 1, &samplingTaskHandle, 0);
+    xTaskCreatePinnedToCore(
+        async_sampling,
+        "async_sampling",
+        2048,
+        NULL,
+        1,
+        &samplingTaskHandle,
+        0
+    );
     esp_task_wdt_delete(samplingTaskHandle);
     esp_task_wdt_delete(xTaskGetIdleTaskHandleForCPU(0));
 }

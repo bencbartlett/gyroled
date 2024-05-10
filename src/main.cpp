@@ -4,7 +4,10 @@
 
 #include "fft.h"
 #include "beatdetection.h"
+#include "bluetooth.h"
 // #include "MSGEQ7.h"
+
+#define BLUETOOTH_DEBUG_MODE false
 
 #define LED_PIN         32
 #define SERVO_1_PIN     26
@@ -82,6 +85,11 @@ unsigned long lastUpdate = 0;
 
 void setup() {
 
+#if BLUETOOTH_DEBUG_MODE
+  Serial.begin(115200);
+  setup_bluetooth();
+#else
+
   Serial.begin(115200);
 
   strip.begin();
@@ -110,6 +118,8 @@ void setup() {
     // oldBarHeights[i] = 0;
   }
 
+  setup_bluetooth();
+
 #if USE_MSGEQ7
   setup_MSGEQ7();
   // setup_MSGEQ7_v2();
@@ -118,6 +128,8 @@ void setup() {
 #if false
   setupI2S();
 #endif
+
+#endif // BLUETOOTH_DEBUG_MODE
 
 }
 
@@ -232,20 +244,25 @@ void colorWipe(uint32_t color, int wait) {
 
 void loop() {
 
+#if BLUETOOTH_DEBUG_MODE
+  delay(500); 
+  Serial.println(receivedValue);  // Use the receivedValue from bluetooth.cpp
+
+#else
+
   delay(1);
 
   frame++;
 
+  Serial.print("Received Value: ");
+  Serial.println(receivedValue);  // Use the receivedValue from bluetooth.cpp
+
+
   updatesPerSecond = 1000.0 / float(millis() - lastUpdate);
   lastUpdate = millis();
+  Serial.print("Updates per second: ");
+  Serial.println(updatesPerSecond);
 
-
-
-  // String output = "";
-  // output += "Updates per second: ";
-  // output += updatesPerSecond;
-  // output += "\n";
-  // Serial.println(output);
 
   // if (millis() - lastSample > 10) {
 #if USE_MSGEQ7
@@ -317,7 +334,7 @@ void loop() {
 
 #if OUTPUT_TO_VISUALIZER
 
-  String foo = "";
+  String foo = "[SPECTROGRAM]:";
   for (uint16_t i = 0; i < NUM_BANDS; i++) {
     // Serial.println(bands[i]); // Send each frequency bin's magnitude
     foo += spectrogram[i];
@@ -352,7 +369,7 @@ void loop() {
     servo2.write((int)(90 + 90 * (servo_master_speed * servo2_speed)));
     servo3.write((int)(90 + 90 * (servo_master_speed * servo3_speed)));
     updateServo = false; // Prevent updating the servo in the next loop iteration
-    Serial.println((int)(90 + 90 * (servo_master_speed * servo1_speed)));
+    // Serial.println((int)(90 + 90 * (servo_master_speed * servo1_speed)));
   }
 
   // Simple non-blocking delay for servo update
@@ -375,6 +392,8 @@ void loop() {
   // delay(10);
 
 #endif // OUTPUT_TO_VISUALIZER
+
+#endif // BLUETOOTH_DEBUG_MODE
 
 }
 
