@@ -9,7 +9,7 @@
 #include "shaders.hpp"
 
 
-#define BLUETOOTH_DEBUG_MODE false
+#define BLUETOOTH_DEBUG_MODE true
 
 #define LED_PIN         32
 #define SERVO_1_PIN     26

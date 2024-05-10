@@ -5,6 +5,6 @@
 
 extern String receivedValue;  // Declare the variable as extern
 
-void setup_bluetooth();
+void setupBluetooth();
 
 #endif

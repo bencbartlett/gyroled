@@ -2,49 +2,163 @@
 #include <BLEDevice.h>
 #include <BLEUtils.h>
 #include <BLEServer.h>
+#include <string>
+#include <sstream>
 #include "shaders.hpp"
 
 // UUIDs for BLE service and characteristic
-#define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
-#define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
+#define SERVICE_UUID        		"4fafc201-1fb5-459e-8fcc-c5c9c331914b"
+#define CHARACTERISTIC_UUID 		"beb5483e-36e1-4688-b7f5-ea07361b26a8"
+#define NOTIFY_CHARACTERISTIC_UUID 	"39f10f90-c4ee-d0fc-6dec-cbc5cfff5a9b"
 
 extern ShaderManager shaderManager;
 String receivedValue = "None";
 
+BLEServer* pServer;
+BLEService* pService;
+BLECharacteristic* pCharacteristic;
+BLECharacteristic* pNotifyCharacteristic;
+
+void sendShaderList() {
+    // Assuming pServer is a global or accessible variable
+    if (!pServer->getConnectedCount()) {
+        Serial.println("No devices connected.");
+        return;
+    }
+
+    String shaderNames = "";
+    for (const auto& shader : shaderManager.shaders) {
+        shaderNames += shader.first + ";"; // Use semicolon as a delimiter
+    }
+
+	Serial.println(shaderNames);
+
+    pNotifyCharacteristic->setValue(shaderNames.c_str());
+    pNotifyCharacteristic->notify();
+}
+
 class MyCallbacks : public BLECharacteristicCallbacks {
+	// void onWrite(BLECharacteristic* pCharacteristic) {
+	// 	std::string value = pCharacteristic->getValue();
+
+	// 	if (value.length() > 0) {
+	// 		Serial.println("Received Value: ");
+	// 		for (int i = 0; i < value.length(); i++)
+	// 			Serial.print(value[i]);
+	// 		Serial.println();
+
+	// 		// Update the receivedValue with the new value
+	// 		receivedValue = value.c_str();
+
+	// 		// Set the active shader based on received value
+	// 		shaderManager.setActiveShader(receivedValue);
+	// 	}
+	// }
+
 	void onWrite(BLECharacteristic* pCharacteristic) {
 		std::string value = pCharacteristic->getValue();
 
-		if (value.length() > 0) {
-			Serial.println("Received Value: ");
-			for (int i = 0; i < value.length(); i++)
-				Serial.print(value[i]);
-			Serial.println();
+		if (value == "getShaders") {
+			sendShaderList();  // Send the list when commanded
+		} else {
+			std::string cmd;
+			std::string arg;
 
-			// Update the receivedValue with the new value
+			std::istringstream ss(value);
+
+			std::getline(ss, cmd, ':');
+			std::getline(ss, arg, ':');
+
 			receivedValue = value.c_str();
 
-			// Set the active shader based on received value
-			shaderManager.setActiveShader(receivedValue);
+			Serial.println("Received Values: ");
+			Serial.println(cmd.c_str());
+			Serial.println(arg.c_str());
+			if (cmd == "setActiveShader") {
+				shaderManager.setActiveShader(arg.c_str());
+			} else {
+				Serial.println("Invalid command");
+			}
 		}
 	}
+
 };
 
+class MyServerCallbacks: public BLEServerCallbacks {
+    void onConnect(BLEServer* server) {
+        Serial.println("Device connected");
+    }
+
+    void onDisconnect(BLEServer* server) {
+        Serial.println("Device disconnected");
+        // Start advertising again to allow a new connection
+        BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
+        pAdvertising->start();
+        Serial.println("Advertising started");
+    }
+};
+
+
+
+
+
+// void sendShaderList() {
+//     if (!pNotifyCharacteristic->getConnected()) {
+//         Serial.println("No device connected for notification.");
+//         return;
+//     }
+
+//     String shaderNames = "";
+//     for (const auto& shader : shaderManager.shaders) {
+//         shaderNames += shader.first + ";"; // Use semicolon as a delimiter
+//     }
+    
+//     pNotifyCharacteristic->setValue(shaderNames.c_str());
+//     pNotifyCharacteristic->notify();
+// }
+
+
+
+
+
 void bluetoothTask(void* args) {
-	// Initialize BLE, called by setup() in main.cpp
+	// // Initialize BLE, called by setup() in main.cpp
+	// BLEDevice::init("Gyroled Totem");
+
+	// BLEServer* pServer = BLEDevice::createServer();
+	// BLEService* pService = pServer->createService(SERVICE_UUID);
+	// BLECharacteristic* pCharacteristic = pService->createCharacteristic(
+	// 	CHARACTERISTIC_UUID,
+	// 	BLECharacteristic::PROPERTY_READ |
+	// 	BLECharacteristic::PROPERTY_WRITE
+	// );
+
+	// pCharacteristic->setCallbacks(new MyCallbacks()); // Set the callback for write operations
+	// pCharacteristic->setValue("Hello World");
+	// pService->start();
+
 	BLEDevice::init("Gyroled Totem");
 
-	BLEServer* pServer = BLEDevice::createServer();
-	BLEService* pService = pServer->createService(SERVICE_UUID);
-	BLECharacteristic* pCharacteristic = pService->createCharacteristic(
-		CHARACTERISTIC_UUID,
-		BLECharacteristic::PROPERTY_READ |
-		BLECharacteristic::PROPERTY_WRITE
-	);
+    pServer = BLEDevice::createServer();
+	pServer->setCallbacks(new MyServerCallbacks()); // Set the custom callbacks
 
-	pCharacteristic->setCallbacks(new MyCallbacks()); // Set the callback for write operations
-	pCharacteristic->setValue("Hello World");
-	pService->start();
+    pService = pServer->createService(SERVICE_UUID);
+
+    // Characteristic for receiving shader changes
+    pCharacteristic = pService->createCharacteristic(
+        CHARACTERISTIC_UUID,
+        BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE
+    );
+
+    // Characteristic for notifying shader list
+    pNotifyCharacteristic = pService->createCharacteristic(
+        NOTIFY_CHARACTERISTIC_UUID, // A new UUID for the notifying characteristic
+        BLECharacteristic::PROPERTY_NOTIFY
+    );
+
+    pCharacteristic->setCallbacks(new MyCallbacks()); // Set the callback for write operations
+    pCharacteristic->setValue("Hello World");
+    pService->start();
 
 	// Start advertising
 	BLEAdvertising* pAdvertising = pServer->getAdvertising();
