@@ -9,7 +9,7 @@
 #include "shaders.hpp"
 
 
-#define BLUETOOTH_DEBUG_MODE true
+#define BLUETOOTH_DEBUG_MODE false
 
 #define LED_PIN         32
 #define AUDIO_IN_PIN    35           
@@ -172,7 +172,8 @@ void loop() {
 	lastUpdate = millis();
 	Serial.print("Updates per second: ");
 	Serial.println(updatesPerSecond);
-
+	Serial.print("Active shader: ");
+	Serial.println(shaderManager.activeShader->getName());
 	Serial.print("Servo speeds");
 	Serial.println(servoManager.getServoSpeeds());
 

@@ -98,9 +98,6 @@ class MyServerCallbacks: public BLEServerCallbacks {
     }
 };
 
-
-
-
 void bluetoothTask(void* args) {
 	// Initialize BLE, called by setup() in main.cpp
 	BLEDevice::init("Gyroled Totem");

@@ -8,11 +8,6 @@
 import SwiftUI
 import CoreBluetooth
 
-//// ViewModel to hold shader names
-//class ShaderViewModel: ObservableObject {
-//    @Published var shaderNames: [String] = []
-//}
-
 // Bluetooth manager for handling BLE operations
 class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     var centralManager: CBCentralManager!
@@ -29,25 +24,7 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     override init() {
         super.init()
         centralManager = CBCentralManager(delegate: self, queue: nil)
-        // Add observers in init or appropriate lifecycle method:
-//        NotificationCenter.default.addObserver(forName: UIApplication.willEnterForegroundNotification, object: nil, queue: nil) { [weak self] _ in
-//            self?.reconnect()
-//        }
     }
-
-//    func centralManagerDidUpdateState(_ central: CBCentralManager) {
-//        if central.state == .poweredOn {
-//            centralManager.scanForPeripherals(withServices: [serviceUUID], options: nil)
-//        } else {
-//            print("Bluetooth is not available.")
-//        }
-//    }
-    
-//    func centralManagerDidUpdateState(_ central: CBCentralManager) {
-//        if central.state == .poweredOn {
-//            reconnect()
-//        }
-//    }
     
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
         switch central.state {
@@ -75,8 +52,6 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
             centralManager.scanForPeripherals(withServices: [serviceUUID], options: nil)
         }
     }
-
-
 
     func connectToPeripheral(_ peripheral: CBPeripheral) {
         espPeripheral = peripheral
