@@ -45,14 +45,18 @@ import SwiftUI
 //    }
 //}
 
-class ShaderViewModel: ObservableObject {
+class TotemViewModel: ObservableObject {
     @Published var shaderNames: [String] = []
+    @Published var servo1Speed: Double = 0
+    @Published var servo2Speed: Double = 0
+    @Published var servo3Speed: Double = 0
+    @Published var servoMasterSpeed: Double = 0
 }
 
 
 struct ContentView: View {
-    @ObservedObject var viewModel = ShaderViewModel()
-    var bluetoothManager: BluetoothManager
+    @ObservedObject var viewModel = TotemViewModel()
+    @ObservedObject var bluetoothManager: BluetoothManager
 
     var body: some View {
         ScrollView {
@@ -63,18 +67,34 @@ struct ContentView: View {
                 
                 ForEach(viewModel.shaderNames, id: \.self) { name in
                     Button(name) {
-                        bluetoothManager.send(value: "setActiveShader:" + name)
+                        bluetoothManager.sendCommand(cmd: "setActiveShader:" + name)
                     }
                     .padding()
                     .background(Color.blue)
                     .foregroundColor(.white)
                     .cornerRadius(5)
                 }
+                Slider(value: $viewModel.servo1Speed, in: -0.0...1.0)
+                    .onChange(of: viewModel.servo1Speed) {
+                        bluetoothManager.sendServoSpeed(servo: 1, speed: viewModel.servo1Speed)
+                    }
+                Slider(value: $viewModel.servo2Speed, in: -0.0...1.0)
+                    .onChange(of: viewModel.servo2Speed) {
+                        bluetoothManager.sendServoSpeed(servo: 2, speed: viewModel.servo2Speed)
+                    }
+                Slider(value: $viewModel.servo3Speed, in: -0.0...1.0)
+                    .onChange(of: viewModel.servo3Speed) {
+                        bluetoothManager.sendServoSpeed(servo: 3, speed: viewModel.servo3Speed)
+                    }
+                Slider(value: $viewModel.servoMasterSpeed, in: -0.0...1.0)
+                    .onChange(of: viewModel.servoMasterSpeed) {
+                        bluetoothManager.sendServoSpeed(servo: 0, speed: viewModel.servoMasterSpeed)
+                    }
             }
         }
+
     }
 }
-
 
 
 

@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #include <BLEDevice.h>
-#include <BLEUtils.h>
-#include <BLEServer.h>
+// #include <BLEUtils.h>
+// #include <BLEServer.h>
 #include <string>
 // #include <sstream>
 #include "servos.hpp"
@@ -23,21 +23,15 @@ BLEService* pService;
 BLECharacteristic* pCharacteristic;
 BLECharacteristic* pNotifyCharacteristic;
 
-void sendShaderList() {
+void sendStringToPhone(String cmd, String data) {
     // Assuming pServer is a global or accessible variable
     if (!pServer->getConnectedCount()) {
         Serial.println("No devices connected.");
         return;
     }
-
-    String shaderNames = "";
-    for (const auto& shader : shaderManager.shaders) {
-        shaderNames += shader.first + ";"; // Use semicolon as a delimiter
-    }
-
-	Serial.println(shaderNames);
-
-    pNotifyCharacteristic->setValue(shaderNames.c_str());
+	String s = cmd + ":" + data;
+	Serial.println(s);
+    pNotifyCharacteristic->setValue(s.c_str());
     pNotifyCharacteristic->notify();
 }
 
@@ -47,16 +41,15 @@ class MyCallbacks : public BLECharacteristicCallbacks {
 		std::string value = pCharacteristic->getValue();
 
 		if (value == "getShaders") {
-			sendShaderList();  // Send the list when commanded
+			String shaderNames = "";
+			for (const auto& shader : shaderManager.shaders) {
+				shaderNames += shader.first + ";"; // Use semicolon as a delimiter
+			}
+			sendStringToPhone("shaders", shaderNames);  // Send the list when commanded
 		} 
-		// else if (value == "getServoSpeeds") {
-        //     std::string speeds = std::to_string(servo_1_speed) + ";" +
-        //                          std::to_string(servo_2_speed) + ";" +
-        //                          std::to_string(servo_3_speed) + ";" +
-        //                          std::to_string(servo_master_speed);
-        //     pCharacteristic->setValue(speeds);
-        //     pCharacteristic->notify();
-		// } 
+		else if (value == "getServoSpeeds") {
+			sendStringToPhone("servoSpeeds", servoManager.getServoSpeeds());
+		} 
 		else {
 
 			size_t pos = value.find(':');
@@ -72,18 +65,17 @@ class MyCallbacks : public BLECharacteristicCallbacks {
 			if (cmd == "setActiveShader") {
 				shaderManager.setActiveShader(arg.c_str());
 			} 
-			// else if (cmd == "setServoSpeed") {
-			// 	            // Assume the value is formatted like "servo1,90"
-			// 	int pos = arg.find(";");
-			// 	if (pos != std::string::npos) {
-			// 		std::string servo = arg.substr(0, pos);
-			// 		float speed = std::stof(arg.substr(pos + 1));
-			// 		if (servo == "servo1") servo_1_speed = speed;
-			// 		else if (servo == "servo2") servo_2_speed = speed;
-			// 		else if (servo == "servo3") servo_3_speed = speed;
-			// 		else if (servo == "servoMaster") servo_master_speed = speed;
-			// 	}
-			// } 
+			else if (cmd == "setServoSpeed") {
+				// Assume the value is formatted like "servo1;90"
+				// size_t pos = arg.find(';');
+				int pos = arg.find(";");
+				if (pos != std::string::npos) {
+					// std::string servo = arg.substr(0, pos);
+					int servo = std::stoi(arg.substr(0, pos));
+					float speed = std::stof(arg.substr(pos + 1));
+					servoManager.setServoSpeed(servo, speed);
+				}
+			} 
 			else {
 				Serial.println("Invalid command");
 			}

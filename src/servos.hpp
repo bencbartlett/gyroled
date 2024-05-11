@@ -36,9 +36,14 @@ public:
 		servo3.attach(SERVO_3_PIN, 500, 2400);
 	}
 
+	String getServoSpeeds() {
+		return String(servo_master_speed) + ";" + String(servo1_speed) + ";" + String(servo2_speed) + ";" + String(servo3_speed);
+	}
+
 	void setServoSpeed(int servo, float speed) {
 		switch (servo) {
 		case 0:
+			Serial.println("Setting master speed to" + String(speed));
 			servo_master_speed = speed;
 			break;
 		case 1:
@@ -71,4 +76,5 @@ public:
 			updateServo = true;
 		}
 	}
+
 };

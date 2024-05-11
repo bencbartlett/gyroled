@@ -37,14 +37,8 @@
 #define RUN_LEDS true
 #define RUN_SERVOS true
 #define OUTPUT_TO_VISUALIZER true
-#define USE_MSGEQ7 false
 
 float avgNoise = 10.0;
-
-// float servo_master_speed = 0.3; // Can range from 0 to 1
-// float servo1_speed = 0.7; // Can range from -1 to 1
-// float servo2_speed = 0.8;
-// float servo3_speed = 1.0;
 
 int ring_1_midpoint_L = (int)(LED_COUNT_RING_1 * 0.25);
 int ring_1_midpoint_R = (int)(LED_COUNT_RING_1 * 0.75 + 1); // fudge factor
@@ -85,6 +79,7 @@ void setup() {
 	strip.setBrightness(BRIGHTNESS);
 
 	servoManager.setupServos();
+
 	setupAsyncSampling(); // Setup the ADC for async sampling
 
 	// Reset bandValues[]
@@ -95,15 +90,6 @@ void setup() {
 	}
 
 	setupBluetooth();
-
-#if USE_MSGEQ7
-	setup_MSGEQ7();
-	// setup_MSGEQ7_v2();
-#endif
-
-#if false
-	setupI2S();
-#endif
 
 #endif // BLUETOOTH_DEBUG_MODE
 
@@ -169,6 +155,10 @@ void loop() {
 #if BLUETOOTH_DEBUG_MODE
 	delay(500);
 	Serial.println(receivedValue);  // Use the receivedValue from bluetooth.cpp
+	Serial.print("Active shader: ");
+	Serial.println(shaderManager.activeShader->getName());
+	Serial.print("Servo speeds: ");
+	Serial.println(servoManager.getServoSpeeds());
 #else
 	delay(1);
 
@@ -182,6 +172,9 @@ void loop() {
 	lastUpdate = millis();
 	Serial.print("Updates per second: ");
 	Serial.println(updatesPerSecond);
+
+	Serial.print("Servo speeds");
+	Serial.println(servoManager.getServoSpeeds());
 
 	lastSample = millis();
 	computeSpectrogram(spectrogram);

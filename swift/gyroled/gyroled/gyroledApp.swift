@@ -24,7 +24,7 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     let characteristicUUID = CBUUID(string: "beb5483e-36e1-4688-b7f5-ea07361b26a8")
     let notifyCharacteristicUUID = CBUUID(string: "39f10f90-c4ee-d0fc-6dec-cbc5cfff5a9b")
 
-    @Published var viewModel = ShaderViewModel()
+    @Published var viewModel = TotemViewModel()
 
     override init() {
         super.init()
@@ -110,7 +110,8 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
             }
             if characteristic.uuid == characteristicUUID {
                 ledCharacteristic = characteristic
-                requestShaderList(peripheral: peripheral)  // Request shader list
+                requestShaderList(peripheral: peripheral)
+                requestServoSpeeds(peripheral: peripheral)
             }
         }
     }
@@ -121,11 +122,31 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
             return
         }
 
-        if let value = characteristic.value, let shaderListString = String(data: value, encoding: .utf8) {
-            let shaderNames = shaderListString.split(separator: ";").map(String.init)
-            print(shaderNames)
-            DispatchQueue.main.async {
-                self.viewModel.shaderNames = shaderNames
+        if let value = characteristic.value, let receivedString = String(data: value, encoding: .utf8) {
+            // Determine the type of command received by checking the prefix
+            if receivedString.starts(with: "shaders:") {
+                let shaderNames = receivedString
+                    .dropFirst("shaders:".count)
+                    .split(separator: ";").map(String.init)
+                DispatchQueue.main.async {
+                    self.viewModel.shaderNames = shaderNames
+                }
+            } else if receivedString.starts(with: "servoSpeeds:") {
+                let speeds = receivedString
+                    .dropFirst("servoSpeeds:".count)
+                    .split(separator: ";")
+                    .compactMap { Double($0) }
+                
+                if speeds.count == 4 {
+                    DispatchQueue.main.async {
+                        self.viewModel.servoMasterSpeed = speeds[0]
+                        self.viewModel.servo1Speed = speeds[1]
+                        self.viewModel.servo2Speed = speeds[2]
+                        self.viewModel.servo3Speed = speeds[3]
+                    }
+                } else {
+                    print("Received incorrect number of servo speeds")
+                }
             }
         }
     }
@@ -138,14 +159,31 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         }
     }
     
-    func send(value: String) {
+    func requestServoSpeeds(peripheral: CBPeripheral) {
+        if let characteristic = ledCharacteristic {
+            let commandString = "getServoSpeeds"
+            let data = Data(commandString.utf8)
+            peripheral.writeValue(data, for: characteristic, type: .withResponse)
+        }
+    }
+
+    
+    func sendServoSpeed(servo: Int, speed: Double) {
+        sendCommand(cmd: "setServoSpeed:\(servo);\(speed)")
+    }
+    
+    func setActiveShader(shader: String) {
+        sendCommand(cmd: "setActiveShader:\(shader)")
+    }
+    
+    func sendCommand(cmd: String) {
         guard let peripheral = espPeripheral,
               let characteristic = ledCharacteristic else {
             print("Characteristic not found.")
             return
         }
 
-        if let data = value.data(using: .utf8) {
+        if let data = cmd.data(using: .utf8) {
             peripheral.writeValue(data, for: characteristic, type: .withResponse)
         }
     }
