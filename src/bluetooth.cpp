@@ -47,6 +47,13 @@ class MyCallbacks : public BLECharacteristicCallbacks {
 			}
 			sendStringToPhone("shaders", shaderNames);  // Send the list when commanded
 		} 
+		else if (value == "getAccentShaders") {
+			String shaderNames = "";
+			for (const auto& shader : shaderManager.accentShaders) {
+				shaderNames += shader.first + ";"; // Use semicolon as a delimiter
+			}
+			sendStringToPhone("accentShaders", shaderNames);  // Send the list when commanded
+		} 
 		else if (value == "getServoSpeeds") {
 			sendStringToPhone("servoSpeeds", servoManager.getServoSpeeds());
 		} 
@@ -65,6 +72,9 @@ class MyCallbacks : public BLECharacteristicCallbacks {
 			if (cmd == "setActiveShader") {
 				shaderManager.setActiveShader(arg.c_str());
 			} 
+			else if (cmd == "setActiveAccentShader") {
+				shaderManager.setActiveAccentShader(arg.c_str());
+			} 
 			else if (cmd == "setServoSpeed") {
 				// Assume the value is formatted like "servo1;90"
 				// size_t pos = arg.find(';');
@@ -81,7 +91,6 @@ class MyCallbacks : public BLECharacteristicCallbacks {
 			}
 		}
 	}
-
 };
 
 class MyServerCallbacks: public BLEServerCallbacks {

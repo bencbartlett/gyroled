@@ -9,7 +9,9 @@ import SwiftUI
 
 class TotemViewModel: ObservableObject {
     @Published var shaderNames: [String] = []
-    @Published var activeShader: String? = "Loopy Rainbow"
+    @Published var accentShaderNames: [String] = []
+    @Published var activeShader: String = "Loopy Rainbow"
+    @Published var activeAccentShader: String = "White Peaks"
     @Published var servo1Speed: Double = 0.7
     @Published var servo2Speed: Double = 0.8
     @Published var servo3Speed: Double = 1.0
@@ -89,27 +91,141 @@ struct ContentView: View {
     @ObservedObject var bluetoothManager: BluetoothManager
 
     var body: some View {
-        ScrollView {
-            VStack {
-                headerText
-                shaderList
-                slidersGroup
-                // Beat Drop Button
-                Button(action: {
-                    bluetoothManager.sendCommand(cmd: "beatDrop")
-                }) {
-                    Text("BEAT DROP")
-                        .fontWeight(.bold)
-                        .foregroundColor(.white)
-                        .padding()
-                        .frame(maxWidth: 300)  // Makes the button stretch to the full width
-                        .background(Color.red)
-                        .cornerRadius(8)
+        
+        NavigationView {
+            Form {
+                // Shader selection section
+                Section(header: Text("Shader")) {
+                    // Picker for shader selection
+                    Picker(selection: $viewModel.activeShader) {
+                        ForEach(viewModel.shaderNames, id: \.self) { name in
+                            Text(name).tag(name)
+                        }
+                    } label: {}
+                    .pickerStyle(InlinePickerStyle())
+                    .onChange(of: viewModel.activeShader) {
+                        bluetoothManager.setActiveShader(shader: viewModel.activeShader)
+                    }
                 }
-                .padding()  // Adds padding around the button for better spacing
+                
+                Section(header: Text("Accent Shader")) {
+                    // Picker for shader selection
+                    Picker(selection: $viewModel.activeAccentShader) {
+                        ForEach(viewModel.accentShaderNames, id: \.self) { name in
+                            Text(name).tag(name)
+                        }
+                    } label: {}
+                    .pickerStyle(InlinePickerStyle())
+                    .onChange(of: viewModel.activeAccentShader) {
+                        bluetoothManager.setActiveAccentShader(shader: viewModel.activeAccentShader)
+                    }
+                }
+
+                // Servo control section
+                Section(header: Text("Servo Controls")) {
+                    sliderView(title: "Servo1 Speed", servoIndex: 1, value: $viewModel.servo1Speed)
+                    sliderView(title: "Servo2 Speed", servoIndex: 2, value: $viewModel.servo2Speed)
+                    sliderView(title: "Servo3 Speed", servoIndex: 3, value: $viewModel.servo3Speed)
+                    sliderView(title: "Master Speed", servoIndex: 0, value: $viewModel.servoMasterSpeed)
+                }
+
+                // Beat drop section
+                Section {
+                    Button(action: {
+                        bluetoothManager.sendCommand(cmd: "beatDrop")
+                    }) {
+                        Text("🚨BEAT DROP🚨")
+                            .fontWeight(.bold)
+                            .foregroundColor(.white)
+                            .padding()
+                            .frame(maxWidth: .infinity)
+                            .background(Color.red)
+                            .cornerRadius(8)
+                    }
+                }
             }
-            .padding(.top, 20)  // Padding at the top of the VStack
+            .navigationBarTitle("GyroLED Totem Controller", displayMode: .inline)
         }
+        
+        
+        
+//        ScrollView {
+//            VStack {
+//                headerText
+//                Text("Shaders")
+//                    .multilineTextAlignment(/*@START_MENU_TOKEN@*/.leading/*@END_MENU_TOKEN@*/)
+//                    .font(.title3)
+//                    .fontWeight(.bold)
+//                
+//                // Shader selection section
+//                Section(header: Text("Shader Selection")) {
+//                    // Picker for shader selection
+//                    Picker("Shader", selection: $viewModel.activeShader) {
+//                        ForEach(viewModel.shaderNames, id: \.self) { name in
+//                            Text(name).tag(name)
+//                        }
+//                    }
+//                    .pickerStyle(InlinePickerStyle())
+//                    .onChange(of: viewModel.activeShader) {
+//                        bluetoothManager.setActiveShader(shader: viewModel.activeShader)
+//                    }
+//                }
+//                
+//                Section(header: Text("Accent Selection")) {
+//                    // Picker for shader selection
+//                    Picker("AccentShader", selection: $viewModel.activeAccentShader) {
+//                        ForEach(viewModel.accentShaderNames, id: \.self) { name in
+//                            Text(name).tag(name)
+//                        }
+//                    }
+//                    .pickerStyle(InlinePickerStyle())
+//                    .onChange(of: viewModel.activeAccentShader) {
+//                        bluetoothManager.setActiveAccentShader(shader: viewModel.activeAccentShader)
+//                    }
+//                }
+//                
+//                
+//                
+////                
+////                Text("Accents")
+////                    .multilineTextAlignment(/*@START_MENU_TOKEN@*/.leading/*@END_MENU_TOKEN@*/)
+////                    .font(.title3)
+////                    .fontWeight(.bold)
+//                
+//                // Picker for shader selection
+//                Picker("Shader", selection: $viewModel.activeAccentShader) {
+//                    ForEach(viewModel.accentShaderNames, id: \.self) { name in
+//                        Text(name).tag(name)
+//                    }
+//                }
+//                .pickerStyle(.inline) // You can choose .inline, .wheel, .segmented based on your UI needs
+//                .frame(height: 150)  // Adjust height as needed
+//                .clipped()
+//
+//                // Trigger update when selection changes
+//                .onChange(of: viewModel.activeAccentShader) {
+//                    bluetoothManager.sendCommand(cmd: "setActiveAccentShader:" + viewModel.activeAccentShader)
+//                }
+//                
+//                
+////                accentShaderList
+//                slidersGroup
+//                // Beat Drop Button
+//                Button(action: {
+//                    bluetoothManager.sendCommand(cmd: "beatDrop")
+//                }) {
+//                    Text("BEAT DROP")
+//                        .fontWeight(.bold)
+//                        .foregroundColor(.white)
+//                        .padding()
+//                        .frame(maxWidth: 300)  // Makes the button stretch to the full width
+//                        .background(Color.red)
+//                        .cornerRadius(8)
+//                }
+//                .padding()  // Adds padding around the button for better spacing
+//            }
+//            .padding(.top, 20)  // Padding at the top of the VStack
+//        }
     }
 
     private var headerText: some View {
@@ -121,40 +237,50 @@ struct ContentView: View {
     
     @State var activeShader: String = "Loopy Rainbow"
 
-    private var shaderList: some View {
-        List {
-            ForEach(viewModel.shaderNames, id: \.self) { name in
-                SelectionCell(shader: name, activeShader: self.$activeShader)
-            }
-        }
-        .navigationTitle("Shaders")
-        .frame(height: 300)  // Set a fixed height for the list
-    }
-
-    private var slidersGroup: some View {
-        Group {
-            sliderView(title: "Servo 1 Speed", servoIndex: 1, value: $viewModel.servo1Speed)
-            sliderView(title: "Servo 2 Speed", servoIndex: 2, value: $viewModel.servo2Speed)
-            sliderView(title: "Servo 3 Speed", servoIndex: 3, value: $viewModel.servo3Speed)
-            sliderView(title: "Master Speed", servoIndex: 0, value: $viewModel.servoMasterSpeed)
-        }
-        .padding(.horizontal, 30)
-    }
+//    private var shaderList: some View {
+//        List {
+//            ForEach(viewModel.shaderNames, id: \.self) { name in
+//                SelectionCell(shader: name, activeShader: self.$activeShader)
+//                    .onTapGesture(perform: {
+//                        bluetoothManager.setActiveShader(shader: name)
+//                    })
+//            }
+//        }
+//        .navigationTitle("Shaders")
+//        .frame(height: 250)  // Set a fixed height for the list
+//    }
+//    
+//    private var accentShaderList: some View {
+//        List {
+//            ForEach(viewModel.accentShaderNames, id: \.self) { name in
+//                SelectionCell(shader: name, activeShader: self.$activeShader)
+//                    .onTapGesture(perform: {
+//                        bluetoothManager.setActiveAccentShader(shader: name)
+//                    })
+//            }
+//        }
+//        .navigationTitle("Accent Shaders")
+//        .frame(height: 150)  // Set a fixed height for the list
+//    }
 
     @ViewBuilder
     private func sliderView(title: String, servoIndex: Int, value: Binding<Double>) -> some View {
-        VStack(alignment: .leading) {
+//        VStack(alignment: .leading) {
             HStack {
                 Text(title)
-                Spacer()
+//                Spacer()
+                Slider(value: value, in: -0.0...1.0)
+                    .onChange(of: value.wrappedValue) {
+                        bluetoothManager.sendServoSpeed(servo: servoIndex, speed: value.wrappedValue)
+                    }
                 Text(String(format: "%.2f", value.wrappedValue))
             }
-            Slider(value: value, in: -0.0...1.0)
-                .onChange(of: value.wrappedValue) {
-                    bluetoothManager.sendServoSpeed(servo: servoIndex, speed: value.wrappedValue)
-                }
-        }
-        .padding(.vertical, 5)
+//            Slider(value: value, in: -0.0...1.0)
+//                .onChange(of: value.wrappedValue) {
+//                    bluetoothManager.sendServoSpeed(servo: servoIndex, speed: value.wrappedValue)
+//                }
+//        }
+//        .padding(.vertical, 5)
     }
 }
 

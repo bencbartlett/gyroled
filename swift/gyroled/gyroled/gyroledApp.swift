@@ -86,6 +86,7 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
             if characteristic.uuid == characteristicUUID {
                 ledCharacteristic = characteristic
                 requestShaderList(peripheral: peripheral)
+                requestAccentShaderList(peripheral: peripheral)
                 requestServoSpeeds(peripheral: peripheral)
             }
         }
@@ -105,6 +106,13 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
                     .split(separator: ";").map(String.init)
                 DispatchQueue.main.async {
                     self.viewModel.shaderNames = shaderNames
+                }
+            } else if receivedString.starts(with: "accentShaders:") {
+                let accentShaderNames = receivedString
+                    .dropFirst("accentShaders:".count)
+                    .split(separator: ";").map(String.init)
+                DispatchQueue.main.async {
+                    self.viewModel.accentShaderNames = accentShaderNames
                 }
             } else if receivedString.starts(with: "servoSpeeds:") {
                 let speeds = receivedString
@@ -134,6 +142,14 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         }
     }
     
+    func requestAccentShaderList(peripheral: CBPeripheral) {
+        if let characteristic = ledCharacteristic {
+            let commandString = "getAccentShaders"
+            let data = Data(commandString.utf8)
+            peripheral.writeValue(data, for: characteristic, type: .withResponse)
+        }
+    }
+    
     func requestServoSpeeds(peripheral: CBPeripheral) {
         if let characteristic = ledCharacteristic {
             let commandString = "getServoSpeeds"
@@ -149,6 +165,10 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     
     func setActiveShader(shader: String) {
         sendCommand(cmd: "setActiveShader:\(shader)")
+    }
+    
+    func setActiveAccentShader(shader: String) {
+        sendCommand(cmd: "setActiveAccentShader:\(shader)")
     }
     
     func sendCommand(cmd: String) {

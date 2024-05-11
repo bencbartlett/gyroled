@@ -14,17 +14,11 @@
 #define LED_PIN         32
 #define AUDIO_IN_PIN    35           
 
-// #define SERVO_1_PIN     26
-// #define SERVO_2_PIN     27
-// #define SERVO_3_PIN     14
-// #define SERVO_UPDATE_HZ 50
-
-
 #define LED_COUNT        648
-#define LED_COUNT_RING_1 257
-#define LED_COUNT_RING_2 212
-#define LED_COUNT_RING_3 179
-#define LED_COUNT_TOTAL  648
+// #define LED_COUNT_RING_1 257
+// #define LED_COUNT_RING_2 212
+// #define LED_COUNT_RING_3 179
+// #define LED_COUNT_TOTAL  648
 
 #define BRIGHTNESS 120
 
@@ -40,12 +34,7 @@
 
 float avgNoise = 10.0;
 
-int ring_1_midpoint_L = (int)(LED_COUNT_RING_1 * 0.25);
-int ring_1_midpoint_R = (int)(LED_COUNT_RING_1 * 0.75 + 1); // fudge factor
-int ring_2_midpoint_L = (int)(LED_COUNT_RING_2 * 0.25 + LED_COUNT_RING_1);
-int ring_2_midpoint_R = (int)(LED_COUNT_RING_2 * 0.75 + LED_COUNT_RING_1 - 1); // fudge factor
-int ring_3_midpoint_L = (int)(LED_COUNT_RING_3 * 0.25 + LED_COUNT_RING_2 + LED_COUNT_RING_1);
-int ring_3_midpoint_R = (int)(LED_COUNT_RING_3 * 0.75 + LED_COUNT_RING_2 + LED_COUNT_RING_1);
+
 
 float peak[NUM_BANDS] = { };              // The length of these arrays must be >= NUM_BANDS
 float spectrogram[NUM_BANDS] = { };
@@ -174,6 +163,8 @@ void loop() {
 	Serial.println(updatesPerSecond);
 	Serial.print("Active shader: ");
 	Serial.println(shaderManager.activeShader->getName());
+	Serial.print("Active accent shader: ");
+	Serial.println(shaderManager.activeAccentShader->getName());
 	Serial.print("Servo speeds");
 	Serial.println(servoManager.getServoSpeeds());
 
@@ -220,7 +211,7 @@ void loop() {
 #if RUN_LEDS
 
 	shaderManager.activeShader->update(frame);
-	applyWhiteBars(noiseLevel);
+	shaderManager.activeAccentShader->update(frame, beatHeuristic);
 
 	strip.show();
 #endif // RUN_LEDS
