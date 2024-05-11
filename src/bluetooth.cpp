@@ -4,6 +4,7 @@
 #include <BLEServer.h>
 #include <string>
 #include <sstream>
+#include "servos.hpp"
 #include "shaders.hpp"
 
 // UUIDs for BLE service and characteristic
@@ -12,6 +13,13 @@
 #define NOTIFY_CHARACTERISTIC_UUID 	"39f10f90-c4ee-d0fc-6dec-cbc5cfff5a9b"
 
 extern ShaderManager shaderManager;
+// extern ServoManager servoManager;
+
+// float servo_master_speed;
+// float servo_1_speed;
+// float servo_2_speed;
+// float servo_3_speed;
+
 String receivedValue = "None";
 
 BLEServer* pServer;
@@ -38,29 +46,22 @@ void sendShaderList() {
 }
 
 class MyCallbacks : public BLECharacteristicCallbacks {
-	// void onWrite(BLECharacteristic* pCharacteristic) {
-	// 	std::string value = pCharacteristic->getValue();
-
-	// 	if (value.length() > 0) {
-	// 		Serial.println("Received Value: ");
-	// 		for (int i = 0; i < value.length(); i++)
-	// 			Serial.print(value[i]);
-	// 		Serial.println();
-
-	// 		// Update the receivedValue with the new value
-	// 		receivedValue = value.c_str();
-
-	// 		// Set the active shader based on received value
-	// 		shaderManager.setActiveShader(receivedValue);
-	// 	}
-	// }
 
 	void onWrite(BLECharacteristic* pCharacteristic) {
 		std::string value = pCharacteristic->getValue();
 
 		if (value == "getShaders") {
 			sendShaderList();  // Send the list when commanded
-		} else {
+		} 
+		// else if (value == "getServoSpeeds") {
+        //     std::string speeds = std::to_string(servo_1_speed) + ";" +
+        //                          std::to_string(servo_2_speed) + ";" +
+        //                          std::to_string(servo_3_speed) + ";" +
+        //                          std::to_string(servo_master_speed);
+        //     pCharacteristic->setValue(speeds);
+        //     pCharacteristic->notify();
+		// } 
+		else {
 			std::string cmd;
 			std::string arg;
 
@@ -74,9 +75,23 @@ class MyCallbacks : public BLECharacteristicCallbacks {
 			Serial.println("Received Values: ");
 			Serial.println(cmd.c_str());
 			Serial.println(arg.c_str());
+
 			if (cmd == "setActiveShader") {
 				shaderManager.setActiveShader(arg.c_str());
-			} else {
+			} 
+			// else if (cmd == "setServoSpeed") {
+			// 	            // Assume the value is formatted like "servo1,90"
+			// 	int pos = arg.find(";");
+			// 	if (pos != std::string::npos) {
+			// 		std::string servo = arg.substr(0, pos);
+			// 		float speed = std::stof(arg.substr(pos + 1));
+			// 		if (servo == "servo1") servo_1_speed = speed;
+			// 		else if (servo == "servo2") servo_2_speed = speed;
+			// 		else if (servo == "servo3") servo_3_speed = speed;
+			// 		else if (servo == "servoMaster") servo_master_speed = speed;
+			// 	}
+			// } 
+			else {
 				Serial.println("Invalid command");
 			}
 		}
@@ -101,42 +116,8 @@ class MyServerCallbacks: public BLEServerCallbacks {
 
 
 
-
-// void sendShaderList() {
-//     if (!pNotifyCharacteristic->getConnected()) {
-//         Serial.println("No device connected for notification.");
-//         return;
-//     }
-
-//     String shaderNames = "";
-//     for (const auto& shader : shaderManager.shaders) {
-//         shaderNames += shader.first + ";"; // Use semicolon as a delimiter
-//     }
-    
-//     pNotifyCharacteristic->setValue(shaderNames.c_str());
-//     pNotifyCharacteristic->notify();
-// }
-
-
-
-
-
 void bluetoothTask(void* args) {
-	// // Initialize BLE, called by setup() in main.cpp
-	// BLEDevice::init("Gyroled Totem");
-
-	// BLEServer* pServer = BLEDevice::createServer();
-	// BLEService* pService = pServer->createService(SERVICE_UUID);
-	// BLECharacteristic* pCharacteristic = pService->createCharacteristic(
-	// 	CHARACTERISTIC_UUID,
-	// 	BLECharacteristic::PROPERTY_READ |
-	// 	BLECharacteristic::PROPERTY_WRITE
-	// );
-
-	// pCharacteristic->setCallbacks(new MyCallbacks()); // Set the callback for write operations
-	// pCharacteristic->setValue("Hello World");
-	// pService->start();
-
+	// Initialize BLE, called by setup() in main.cpp
 	BLEDevice::init("Gyroled Totem");
 
     pServer = BLEDevice::createServer();

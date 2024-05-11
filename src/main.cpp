@@ -5,7 +5,7 @@
 #include "fft.h"
 #include "beatdetection.h"
 #include "bluetooth.h"
-
+// #include "servos.hpp"
 #include "shaders.hpp"
 
 
@@ -40,10 +40,10 @@
 
 float avgNoise = 10.0;
 
-float servo_master_speed = 0.3; // Can range from 0 to 1
-float servo1_speed = 0.7; // Can range from -1 to 1
-float servo2_speed = 0.8;
-float servo3_speed = 1.0;
+// float servo_master_speed = 0.3; // Can range from 0 to 1
+// float servo1_speed = 0.7; // Can range from -1 to 1
+// float servo2_speed = 0.8;
+// float servo3_speed = 1.0;
 
 int ring_1_midpoint_L = (int)(LED_COUNT_RING_1 * 0.25);
 int ring_1_midpoint_R = (int)(LED_COUNT_RING_1 * 0.75 + 1); // fudge factor
@@ -63,13 +63,15 @@ float updatesPerSecond = 0.0;
 Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_RGBW + NEO_KHZ800);
 ShaderManager shaderManager(strip);
 
-Servo servo1;
-Servo servo2;
-Servo servo3;
+// ServoManager servoManager;
+
+// Servo servo1;
+// Servo servo2;
+// Servo servo3;
 
 
-bool updateServo = true; // Flag to control servo update
-unsigned long lastServoUpdate = 0;
+// bool updateServo = true; // Flag to control servo update
+// unsigned long lastServoUpdate = 0;
 unsigned long lastSample = 0;
 unsigned long lastUpdate = 0;
 
@@ -88,18 +90,19 @@ void setup() {
 	strip.show();
 	strip.setBrightness(BRIGHTNESS);
 
-	ESP32PWM::allocateTimer(0);
-	ESP32PWM::allocateTimer(1);
-	ESP32PWM::allocateTimer(2);
-	ESP32PWM::allocateTimer(3);
-	servo1.setPeriodHertz(50);    // standard 50 hz servo
-	servo2.setPeriodHertz(50);
-	servo3.setPeriodHertz(50);
+	// ESP32PWM::allocateTimer(0);
+	// ESP32PWM::allocateTimer(1);
+	// ESP32PWM::allocateTimer(2);
+	// ESP32PWM::allocateTimer(3);
+	// servo1.setPeriodHertz(50);    // standard 50 hz servo
+	// servo2.setPeriodHertz(50);
+	// servo3.setPeriodHertz(50);
 
-	servo1.attach(SERVO_1_PIN, 500, 2400);
-	servo2.attach(SERVO_2_PIN, 500, 2400);
-	servo3.attach(SERVO_3_PIN, 500, 2400);
+	// servo1.attach(SERVO_1_PIN, 500, 2400);
+	// servo2.attach(SERVO_2_PIN, 500, 2400);
+	// servo3.attach(SERVO_3_PIN, 500, 2400);
 
+	// servoManager.setupServos();
 	setupAsyncSampling(); // Setup the ADC for async sampling
 
 	// Reset bandValues[]
@@ -235,20 +238,7 @@ void loop() {
 #endif // OUTPUT_TO_VISUALIZER
 
 #if RUN_SERVOS
-	if (updateServo) {
-		// Example servo movements
-		servo1.write((int)(90 + 90 * (servo_master_speed * servo1_speed)));
-		servo2.write((int)(90 + 90 * (servo_master_speed * servo2_speed)));
-		servo3.write((int)(90 + 90 * (servo_master_speed * servo3_speed)));
-		updateServo = false; // Prevent updating the servo in the next loop iteration
-		// Serial.println((int)(90 + 90 * (servo_master_speed * servo1_speed)));
-	}
-
-	// Simple non-blocking delay for servo update
-	if (millis() - lastServoUpdate > 1000 / SERVO_UPDATE_HZ) { // 1-second delay between servo updates
-		lastServoUpdate = millis();
-		updateServo = true;
-	}
+	// servoManager.runServos();
 #endif // RUN_SERVOS
 
 #if RUN_LEDS
