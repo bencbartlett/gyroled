@@ -5,18 +5,19 @@
 #include "fft.h"
 #include "beatdetection.h"
 #include "bluetooth.h"
-// #include "servos.hpp"
+#include "servos.hpp"
 #include "shaders.hpp"
 
 
 #define BLUETOOTH_DEBUG_MODE true
 
 #define LED_PIN         32
-#define SERVO_1_PIN     26
-#define SERVO_2_PIN     27
-#define SERVO_3_PIN     14
 #define AUDIO_IN_PIN    35           
-#define SERVO_UPDATE_HZ 50
+
+// #define SERVO_1_PIN     26
+// #define SERVO_2_PIN     27
+// #define SERVO_3_PIN     14
+// #define SERVO_UPDATE_HZ 50
 
 
 #define LED_COUNT        648
@@ -63,15 +64,8 @@ float updatesPerSecond = 0.0;
 Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_RGBW + NEO_KHZ800);
 ShaderManager shaderManager(strip);
 
-// ServoManager servoManager;
+ServoManager servoManager;
 
-// Servo servo1;
-// Servo servo2;
-// Servo servo3;
-
-
-// bool updateServo = true; // Flag to control servo update
-// unsigned long lastServoUpdate = 0;
 unsigned long lastSample = 0;
 unsigned long lastUpdate = 0;
 
@@ -90,19 +84,7 @@ void setup() {
 	strip.show();
 	strip.setBrightness(BRIGHTNESS);
 
-	// ESP32PWM::allocateTimer(0);
-	// ESP32PWM::allocateTimer(1);
-	// ESP32PWM::allocateTimer(2);
-	// ESP32PWM::allocateTimer(3);
-	// servo1.setPeriodHertz(50);    // standard 50 hz servo
-	// servo2.setPeriodHertz(50);
-	// servo3.setPeriodHertz(50);
-
-	// servo1.attach(SERVO_1_PIN, 500, 2400);
-	// servo2.attach(SERVO_2_PIN, 500, 2400);
-	// servo3.attach(SERVO_3_PIN, 500, 2400);
-
-	// servoManager.setupServos();
+	servoManager.setupServos();
 	setupAsyncSampling(); // Setup the ADC for async sampling
 
 	// Reset bandValues[]
@@ -238,7 +220,7 @@ void loop() {
 #endif // OUTPUT_TO_VISUALIZER
 
 #if RUN_SERVOS
-	// servoManager.runServos();
+	servoManager.runServos();
 #endif // RUN_SERVOS
 
 #if RUN_LEDS

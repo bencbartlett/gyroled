@@ -3,7 +3,7 @@
 #include <BLEUtils.h>
 #include <BLEServer.h>
 #include <string>
-#include <sstream>
+// #include <sstream>
 #include "servos.hpp"
 #include "shaders.hpp"
 
@@ -13,12 +13,8 @@
 #define NOTIFY_CHARACTERISTIC_UUID 	"39f10f90-c4ee-d0fc-6dec-cbc5cfff5a9b"
 
 extern ShaderManager shaderManager;
-// extern ServoManager servoManager;
+extern ServoManager servoManager;
 
-// float servo_master_speed;
-// float servo_1_speed;
-// float servo_2_speed;
-// float servo_3_speed;
 
 String receivedValue = "None";
 
@@ -62,13 +58,10 @@ class MyCallbacks : public BLECharacteristicCallbacks {
         //     pCharacteristic->notify();
 		// } 
 		else {
-			std::string cmd;
-			std::string arg;
 
-			std::istringstream ss(value);
-
-			std::getline(ss, cmd, ':');
-			std::getline(ss, arg, ':');
+			size_t pos = value.find(':');
+			std::string cmd = value.substr(0, pos);
+			std::string arg = value.substr(pos + 1);
 
 			receivedValue = value.c_str();
 

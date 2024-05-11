@@ -1,3 +1,4 @@
+#include <Arduino.h>
 #include <ESP32Servo.h>
 
 #define SERVO_1_PIN     26
@@ -21,21 +22,15 @@ public:
 		
 	}
 
-	~ServoManager() {
-		delete& servo1;
-		delete& servo2;
-		delete& servo3;
-	}
-
 	void setupServos() {
 		ESP32PWM::allocateTimer(0);
 		ESP32PWM::allocateTimer(1);
 		ESP32PWM::allocateTimer(2);
 		ESP32PWM::allocateTimer(3);
+
 		servo1.setPeriodHertz(SERVO_UPDATE_HZ);
 		servo2.setPeriodHertz(SERVO_UPDATE_HZ);
 		servo3.setPeriodHertz(SERVO_UPDATE_HZ);
-
 		servo1.attach(SERVO_1_PIN, 500, 2400);
 		servo2.attach(SERVO_2_PIN, 500, 2400);
 		servo3.attach(SERVO_3_PIN, 500, 2400);
