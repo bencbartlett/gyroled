@@ -20,8 +20,6 @@
 // #define LED_COUNT_RING_3 179
 // #define LED_COUNT_TOTAL  648
 
-#define BRIGHTNESS 120
-
 #define AMPLITUDE       1000          // Depending on your audio source level, you may need to alter this value. Can be used as a 'sensitivity' control.
 #define NUM_BANDS       8             // To change this, you will need to change the bunch of if statements describing the mapping from bins to bands
 #define NUM_BANDS_MSQEQ7 7
@@ -34,7 +32,7 @@
 
 float avgNoise = 10.0;
 
-
+int brightness = 120;
 
 float peak[NUM_BANDS] = { };              // The length of these arrays must be >= NUM_BANDS
 float spectrogram[NUM_BANDS] = { };
@@ -65,7 +63,7 @@ void setup() {
 	strip.begin();
 	strip.clear();
 	strip.show();
-	strip.setBrightness(BRIGHTNESS);
+	strip.setBrightness(brightness);
 
 	servoManager.setupServos();
 
@@ -152,6 +150,10 @@ void loop() {
 	delay(1);
 
 	frame++;
+
+	if (frame % 30 == 0) {
+		strip.setBrightness(brightness);
+	}
 
 	Serial.print("Received Value: ");
 	Serial.println(receivedValue);  // Use the receivedValue from bluetooth.cpp

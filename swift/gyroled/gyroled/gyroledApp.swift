@@ -171,6 +171,10 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         sendCommand(cmd: "setActiveAccentShader:\(shader)")
     }
     
+    func setBrightness(brightness: Int) {
+        sendCommand(cmd: "setBrightness:\(brightness)")
+    }
+    
     func sendCommand(cmd: String) {
         guard let peripheral = espPeripheral,
               let characteristic = ledCharacteristic else {
