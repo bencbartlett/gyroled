@@ -31,7 +31,6 @@
 #define OUTPUT_TO_VISUALIZER true
 
 float avgNoise = 10.0;
-
 int brightness = 120;
 
 float peak[NUM_BANDS] = { };              // The length of these arrays must be >= NUM_BANDS
@@ -43,7 +42,8 @@ int frame = 0;
 float updatesPerSecond = 0.0;
 
 Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_RGBW + NEO_KHZ800);
-ShaderManager shaderManager(strip);
+LedColor ledColors[LED_COUNT];
+ShaderManager shaderManager(strip, ledColors);
 
 ServoManager servoManager;
 

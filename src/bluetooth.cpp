@@ -15,6 +15,7 @@
 extern ShaderManager shaderManager;
 extern ServoManager servoManager;
 
+extern int brightness;
 
 String receivedValue = "None";
 
@@ -57,6 +58,9 @@ class MyCallbacks : public BLECharacteristicCallbacks {
 		else if (value == "getServoSpeeds") {
 			sendStringToPhone("servoSpeeds", servoManager.getServoSpeeds());
 		} 
+		else if (value == "getBrightness") {
+			sendStringToPhone("brightness", String(brightness));
+		}
 		else {
 
 			size_t pos = value.find(':');
@@ -77,7 +81,6 @@ class MyCallbacks : public BLECharacteristicCallbacks {
 			} 
 			else if (cmd == "setServoSpeed") {
 				// Assume the value is formatted like "servo1;90"
-				// size_t pos = arg.find(';');
 				int pos = arg.find(";");
 				if (pos != std::string::npos) {
 					// std::string servo = arg.substr(0, pos);
@@ -86,6 +89,11 @@ class MyCallbacks : public BLECharacteristicCallbacks {
 					servoManager.setServoSpeed(servo, speed);
 				}
 			} 
+			else if (cmd == "setBrightness") {
+				// Assume the value is formatted like "servo1;90"
+				int newBrightness = std::stoi(arg);
+				brightness = newBrightness;
+			}
 			else {
 				Serial.println("Invalid command");
 			}
