@@ -212,10 +212,11 @@ void loop() {
 
 #if RUN_LEDS
 
-	shaderManager.activeShader->update(frame);
-	shaderManager.activeAccentShader->update(frame, beatHeuristic);
+	// shaderManager.activeShader->update(frame);
+	// shaderManager.activeAccentShader->update(frame, beatHeuristic);
 
-	strip.show();
+	// strip.show();
+	shaderManager.run(frame, beatHeuristic);
 #endif // RUN_LEDS
 
 #endif // BLUETOOTH_DEBUG_MODE
