@@ -5,7 +5,12 @@
 #include "fft.h"
 
 
-#define HEURISTIC_BUFFER_SIZE 2048  // at 30fps this is 68 seconds of context
+#define HEURISTIC_BUFFER_SIZE 			2048  // at 30fps this is 68 seconds of context
+
+#define MAXIMUM_BEATS_PER_MINUTE	 	155;
+#define TYPICAL_BEATS_PER_MINUTE 		126;
+#define SINGLE_BEAT_DURATION			100; // in ms, good value range is [50:150]
+const int MINIMUM_DELAY_BETWEEN_BEATS = 60000L / MAXIMUM_BEATS_PER_MINUTE;
 
 float heuristicsBuffer[HEURISTIC_BUFFER_SIZE] = {};
 uint16_t heuristicsBufferIndex = 0;
@@ -14,19 +19,14 @@ float bufferCopy[HEURISTIC_BUFFER_SIZE] = {};
 float spectrumFiltered[SAMPLES / 2] = {};
 float spectrumFilteredPrev[SAMPLES / 2] = {};
 
-const int MAXIMUM_BEATS_PER_MINUTE = 155;
-const int TYPICAL_BEATS_PER_MINUTE = 126;
-const int MINIMUM_DELAY_BETWEEN_BEATS = 60000L / MAXIMUM_BEATS_PER_MINUTE;
-const int SINGLE_BEAT_DURATION = 100; // good value range is [50:150]
+const float alpha_short = 1.0 / (30.0 * 5.0); // roughly 5 seconds
+const float alpha_long = 1.0 / (30.0 * 60.0); // roughly 60 seconds
+float heuristic_ema = 1.0;
+bool bufferInitialized = false;
 
 unsigned long lastBeatTimestamp = 0;
 unsigned long elapsedBeats = 0;
 
-const float alpha_short = 1.0 / (30.0 * 5.0); // roughly 5 seconds
-const float alpha_long = 1.0 / (30.0 * 60.0); // roughly 60 seconds
-float heuristic_ema = 1.0;
-
-bool bufferInitialized = false;
 
 float calculateRecencyFactor() {
 	unsigned long durationSinceLastBeat = millis() - lastBeatTimestamp;
@@ -92,17 +92,15 @@ float computeBeatHeuristic(float fftResults[SAMPLES]) {
 	// float heuristicThreshold = 1.5 * heuristic_ema;
 	if (heuristic > heuristicThreshold) {
 		lastBeatTimestamp = millis();
-		Serial.print("BEAT (threshold) ");
-		Serial.println(heuristicThreshold);
+		// Serial.print("BEAT (threshold) ");
+		// Serial.println(heuristicThreshold);
 		elapsedBeats++;
 	}
 
-	Serial.print(heuristic);
-
+	// Serial.print(heuristic);
 
 	heuristicsBuffer[heuristicsBufferIndex] = heuristic;
 	heuristicsBufferIndex = (heuristicsBufferIndex + 1) % HEURISTIC_BUFFER_SIZE;
-
 
 	// // Clip this without storing it in the buffer
 	// if (heuristic < heuristic_ema) {

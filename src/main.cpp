@@ -16,20 +16,21 @@
 #define LED_PIN         		32
 #define LED_COUNT       	 	648
 
-#define NUM_BANDS       8             // To change this, you will need to change the bunch of if statements describing the mapping from bins to bands
-
-int brightness = 255;
-
-float spectrogram[NUM_BANDS] = { };
-
 int frame = 0;
 float updatesPerSecond = 0.0;
 unsigned long lastUpdate = 0;
 
+int brightness = 255;
 Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_RGBW + NEO_KHZ800);
+
 LedColor ledColors[LED_COUNT];
+
 ShaderManager shaderManager(strip, ledColors);
+
 ServoManager servoManager;
+
+float spectrogram[NUM_BANDS] = { };
+
 
 void setup() {
 	#if BLUETOOTH_DEBUG_MODE
