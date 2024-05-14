@@ -1,9 +1,9 @@
 #include <Arduino.h>
 #include <ESP32Servo.h>
 
-#define SERVO_1_PIN     26
+#define SERVO_1_PIN     14
 #define SERVO_2_PIN     27
-#define SERVO_3_PIN     14
+#define SERVO_3_PIN     26
 #define SERVO_UPDATE_HZ 50
 
 class ServoManager {
@@ -11,8 +11,8 @@ private:
 	Servo servo1;
 	Servo servo2;
 	Servo servo3;
-	float servo_master_speed = 0.3; // Can range from 0 to 1
-	float servo1_speed = 0.7; // Can range from -1 to 1
+	float servo_master_speed = 0.25; // Can range from 0 to 1
+	float servo1_speed = 0.6; // Can range from -1 to 1
 	float servo2_speed = 0.8;
 	float servo3_speed = 1.0;
 	bool updateServo = true; // Flag to control servo update
@@ -43,7 +43,6 @@ public:
 	void setServoSpeed(int servo, float speed) {
 		switch (servo) {
 		case 0:
-			Serial.println("Setting master speed to" + String(speed));
 			servo_master_speed = speed;
 			break;
 		case 1:
