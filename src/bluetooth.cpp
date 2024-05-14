@@ -1,16 +1,13 @@
 #include <Arduino.h>
 #include <BLEDevice.h>
-// #include <BLEUtils.h>
-// #include <BLEServer.h>
 #include <string>
-// #include <sstream>
 #include "servos.hpp"
 #include "shaders.hpp"
 
-// UUIDs for BLE service and characteristic
-#define SERVICE_UUID        		"4fafc201-1fb5-459e-8fcc-c5c9c331914b"
-#define CHARACTERISTIC_UUID 		"beb5483e-36e1-4688-b7f5-ea07361b26a8"
-#define NOTIFY_CHARACTERISTIC_UUID 	"39f10f90-c4ee-d0fc-6dec-cbc5cfff5a9b"
+// UUIDs for BLE service and characteristic, randomly generated hex strings
+#define SERVICE_UUID        		"4fafc204-1fb5-459e-8fcc-c5c9c331914b"
+#define CHARACTERISTIC_UUID 		"beb5483f-36e1-4688-b7f5-ea07361b26a8"
+#define NOTIFY_CHARACTERISTIC_UUID 	"39f10f91-c4ee-d0fc-6dec-cbc5cfff5a9b"
 
 extern ShaderManager shaderManager;
 extern ServoManager servoManager;

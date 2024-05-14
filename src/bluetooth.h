@@ -1,9 +1,9 @@
 #ifndef BLUETOOTH_H
 #define BLUETOOTH_H
 
-#include <Arduino.h>  // Include Arduino base library
+#include <Arduino.h>
 
-extern String receivedValue;  // Declare the variable as extern
+extern String receivedValue;
 
 void setupBluetooth();
 

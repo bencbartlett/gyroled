@@ -15,9 +15,9 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     var ledCharacteristic: CBCharacteristic?
 
     // Define the UUIDs for services and characteristics
-    let serviceUUID = CBUUID(string: "4fafc201-1fb5-459e-8fcc-c5c9c331914b")
-    let characteristicUUID = CBUUID(string: "beb5483e-36e1-4688-b7f5-ea07361b26a8")
-    let notifyCharacteristicUUID = CBUUID(string: "39f10f90-c4ee-d0fc-6dec-cbc5cfff5a9b")
+    let serviceUUID = CBUUID(string: "4fafc204-1fb5-459e-8fcc-c5c9c331914b")
+    let characteristicUUID = CBUUID(string: "beb5483f-36e1-4688-b7f5-ea07361b26a8")
+    let notifyCharacteristicUUID = CBUUID(string: "39f10f91-c4ee-d0fc-6dec-cbc5cfff5a9b")
 
     @Published var viewModel = TotemViewModel()
 

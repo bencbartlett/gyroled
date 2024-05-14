@@ -70,7 +70,7 @@ public:
 		}
 
 		// Simple non-blocking delay for servo update
-		if (millis() - lastServoUpdate > 1000 / SERVO_UPDATE_HZ) { // 1-second delay between servo updates
+		if (millis() - lastServoUpdate > 1000 / SERVO_UPDATE_HZ) {
 			lastServoUpdate = millis();
 			updateServo = true;
 		}
