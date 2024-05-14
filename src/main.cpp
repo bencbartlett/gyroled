@@ -9,179 +9,69 @@
 #include "shaders.hpp"
 
 
-#define BLUETOOTH_DEBUG_MODE false
+#define BLUETOOTH_DEBUG_MODE 	false
+#define PRINT_SUMMARY    		false
+#define OUTPUT_TO_VISUALIZER 	false
 
-#define LED_PIN         32
-#define AUDIO_IN_PIN    35           
+#define LED_PIN         		32
+#define LED_COUNT       	 	648
 
-#define LED_COUNT        648
-// #define LED_COUNT_RING_1 257
-// #define LED_COUNT_RING_2 212
-// #define LED_COUNT_RING_3 179
-// #define LED_COUNT_TOTAL  648
-
-#define AMPLITUDE       1000          // Depending on your audio source level, you may need to alter this value. Can be used as a 'sensitivity' control.
 #define NUM_BANDS       8             // To change this, you will need to change the bunch of if statements describing the mapping from bins to bands
-#define NUM_BANDS_MSQEQ7 7
-#define NOISE           20           // Used as a crude noise filter, values below this are ignored
-#define PEAK_DECAY_RATE 5
-#define NOISE_EMA_ALPHA 0.02        // At about 25fps this is about a 2 second window
-#define RUN_LEDS true
-#define RUN_SERVOS true
-#define OUTPUT_TO_VISUALIZER false
 
-float avgNoise = 10.0;
 int brightness = 255;
 
-float peak[NUM_BANDS] = { };              // The length of these arrays must be >= NUM_BANDS
 float spectrogram[NUM_BANDS] = { };
 
-int noiseLevel = 0;
 int frame = 0;
-
 float updatesPerSecond = 0.0;
+unsigned long lastUpdate = 0;
 
 Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_RGBW + NEO_KHZ800);
 LedColor ledColors[LED_COUNT];
 ShaderManager shaderManager(strip, ledColors);
-
 ServoManager servoManager;
 
-unsigned long lastSample = 0;
-unsigned long lastUpdate = 0;
-
-
 void setup() {
-
-#if BLUETOOTH_DEBUG_MODE
+	#if BLUETOOTH_DEBUG_MODE
 	Serial.begin(115200);
 	setupBluetooth();
-#else
-
+	#else
 	Serial.begin(115200);
-
-	strip.begin();
-	strip.clear();
-	strip.show();
-	strip.setBrightness(brightness);
-
+	shaderManager.setupStrip();
 	servoManager.setupServos();
-
-	setupAsyncSampling(); // Setup the ADC for async sampling
-
-	// Reset bandValues[]
-	for (int i = 0; i < NUM_BANDS; i++) {
-		// bandValues[i] = 0;
-		peak[i] = 0.;
-		// oldBarHeights[i] = 0;
-	}
-
+	setupAsyncSampling();
 	setupBluetooth();
-
-#endif // BLUETOOTH_DEBUG_MODE
-
+	#endif // BLUETOOTH_DEBUG_MODE
 }
-
-
-/* =====================================================================================
- * COLOR PATTERNS WHEEEEE
- * =====================================================================================
- */
-
-
-
-int clip255(int value) {
-	// Ensure the value is not less than minVal and not greater than maxVal
-	return std::min(std::max(value, 0), 255);
-}
-
-
-
-void applyWhiteBars(int noiseLevel) {
-	int factor = 0.95;
-	int amp = noiseLevel - avgNoise * factor > 0 ? (noiseLevel - avgNoise * factor) * 1 : 0;
-	if (amp > 0) {
-		strip.fill(strip.Color(255, 255, 255, 255), ring_1_midpoint_L - amp, 2 * amp);
-		strip.fill(strip.Color(255, 255, 255, 255), ring_1_midpoint_R - amp, 2 * amp);
-		strip.fill(strip.Color(255, 255, 255, 255), ring_2_midpoint_L - amp, 2 * amp);
-		strip.fill(strip.Color(255, 255, 255, 255), ring_2_midpoint_R - amp, 2 * amp);
-		strip.fill(strip.Color(255, 255, 255, 255), ring_3_midpoint_L - amp, 2 * amp);
-		strip.fill(strip.Color(255, 255, 255, 255), ring_3_midpoint_R - amp, 2 * amp);
-	}
-}
-
-
-void pulseWhiteAndRGB() {
-	int wait = 5;
-	for (int j = 0; j < 256; j++) { // Ramp up from 0 to 255
-		// Fill entire strip with white at gamma-corrected brightness level 'j':
-		strip.fill(strip.Color(strip.gamma8(j), strip.gamma8(j), strip.gamma8(j), strip.gamma8(j)));
-		strip.show();
-		delay(wait);
-	}
-
-	for (int j = 255; j >= 0; j--) { // Ramp down from 255 to 0
-		strip.fill(strip.Color(strip.gamma8(j), strip.gamma8(j), strip.gamma8(j), strip.gamma8(j)));
-		strip.show();
-		delay(wait);
-	}
-}
-
-
-void colorWipe(uint32_t color, int wait) {
-	for (int i = 0; i < strip.numPixels(); i++) { // For each pixel in strip...
-		strip.setPixelColor(i, color);         //  Set pixel's color (in RAM)
-		strip.show();                          //  Update strip to match
-		delay(wait);                           //  Pause for a moment
-	}
-}
-
-
 
 void loop() {
-#if BLUETOOTH_DEBUG_MODE
+
+	#if BLUETOOTH_DEBUG_MODE
 	delay(500);
-	Serial.println(receivedValue);  // Use the receivedValue from bluetooth.cpp
+	Serial.println(receivedValue);
 	Serial.print("Active shader: ");
 	Serial.println(shaderManager.activeShader->getName());
 	Serial.print("Servo speeds: ");
 	Serial.println(servoManager.getServoSpeeds());
-#else
 
+	#else
 	frame++;
 
 	if (frame % 30 == 0) {
 		strip.setBrightness(brightness);
 	}
 
-	// Serial.print("Received Value: ");
-	// Serial.println(receivedValue);  // Use the receivedValue from bluetooth.cpp
-
-
-
-	lastSample = millis();
 	computeSpectrogram(spectrogram);
-	// Process the FFT data into bar heights
-	for (int band = 0; band < NUM_BANDS; band++) {
-		// Move peak up
-		if (spectrogram[band] > peak[band]) {
-			// peak[band] = min(TOP, barHeight);
-			peak[band] = spectrogram[band];
-		}
-	}
-
-	noiseLevel = (peak[0] + peak[1] + peak[2] + peak[3]);
-	avgNoise = (NOISE_EMA_ALPHA * noiseLevel) + ((1 - NOISE_EMA_ALPHA) * avgNoise);
-	// noiseLevel = (oldBarHeights[1] + oldBarHeights[2] + oldBarHeights[3] + oldBarHeights[4]); // / (AMPLITUDE / 4);
-
-	// Decay peak
-	for (byte band = 0; band < NUM_BANDS; band++) {
-		if (peak[band] > 0) peak[band] -= PEAK_DECAY_RATE;
-	}
-
 	float beatHeuristic = computeBeatHeuristic(spectrogram);
 
-#if OUTPUT_TO_VISUALIZER
+	servoManager.runServos();
+
+	shaderManager.run(frame, beatHeuristic);
+
+	updatesPerSecond = 1000.0 / float(millis() - lastUpdate);
+	lastUpdate = millis();
+
+	#if OUTPUT_TO_VISUALIZER
 	String foo = "[SPECTROGRAM]:";
 	for (uint16_t i = 0; i < NUM_BANDS; i++) {
 		// Serial.println(bands[i]); // Send each frequency bin's magnitude
@@ -193,35 +83,18 @@ void loop() {
 	foo += ";";
 	foo += beatHeuristic;
 	Serial.println(foo);
-#endif // OUTPUT_TO_VISUALIZER
-
-#if RUN_SERVOS
-	servoManager.runServos();
-#endif // RUN_SERVOS
-
-#if RUN_LEDS
-
-	// shaderManager.activeShader->update(frame);
-	// shaderManager.activeAccentShader->update(frame, beatHeuristic);
-
-	// strip.show();
-	shaderManager.run(frame, beatHeuristic);
-#endif // RUN_LEDS
-
-#endif // BLUETOOTH_DEBUG_MODE
-
-
-	updatesPerSecond = 1000.0 / float(millis() - lastUpdate);
-	lastUpdate = millis();
+	#endif // OUTPUT_TO_VISUALIZER
+	#if PRINT_SUMMARY
 	Serial.print("Updates per second: ");
 	Serial.print(updatesPerSecond);
 	Serial.print("  |  Beat heuristic: ");
 	Serial.println(beatHeuristic);
-
 	// Serial.print("Active shader: ");
 	// Serial.println(shaderManager.activeShader->getName());
 	// Serial.print("Active accent shader: ");
 	// Serial.println(shaderManager.activeAccentShader->getName());
 	// Serial.print("Servo speeds");
 	// Serial.println(servoManager.getServoSpeeds());
+	#endif // PRINT_SUMMARY
+	#endif // BLUETOOTH_DEBUG_MODE
 }

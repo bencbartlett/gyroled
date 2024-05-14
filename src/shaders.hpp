@@ -455,6 +455,13 @@ public:
 		}
 	}
 
+	void setupStrip() {
+		strip.begin();
+		strip.clear();
+		strip.show();
+		strip.setBrightness(brightness);
+	}
+
 	void setActiveShader(const String& shaderName) {
 		auto it = shaders.find(shaderName);
 		if (it != shaders.end()) {
