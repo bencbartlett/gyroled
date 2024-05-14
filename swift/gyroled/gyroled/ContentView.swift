@@ -11,7 +11,7 @@ class TotemViewModel: ObservableObject {
     @Published var shaderNames: [String] = []
     @Published var accentShaderNames: [String] = []
     @Published var activeShader: String = "Loopy Rainbow"
-    @Published var activeAccentShader: String = "White Peaks"
+    @Published var activeAccentShader: String = "(No Accent)"
     @Published var brightness: Int = 120
     @Published var servo1Speed: Double = 0.7
     @Published var servo2Speed: Double = 0.8
@@ -27,6 +27,14 @@ struct ContentView: View {
         
         NavigationView {
             Form {
+                Button(action: {
+                    bluetoothManager.reconnect()
+                }) {
+                    Text("Reconnect")
+//                        .padding()
+//                        .frame(maxWidth: .infinity)
+//                        .cornerRadius(8)
+                }
                 
                 // Servo control section
                 Section(header: Text("LED Controls")) {

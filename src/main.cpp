@@ -28,10 +28,10 @@
 #define NOISE_EMA_ALPHA 0.02        // At about 25fps this is about a 2 second window
 #define RUN_LEDS true
 #define RUN_SERVOS true
-#define OUTPUT_TO_VISUALIZER true
+#define OUTPUT_TO_VISUALIZER false
 
 float avgNoise = 10.0;
-int brightness = 120;
+int brightness = 255;
 
 float peak[NUM_BANDS] = { };              // The length of these arrays must be >= NUM_BANDS
 float spectrogram[NUM_BANDS] = { };
@@ -147,7 +147,6 @@ void loop() {
 	Serial.print("Servo speeds: ");
 	Serial.println(servoManager.getServoSpeeds());
 #else
-	delay(1);
 
 	frame++;
 
@@ -155,20 +154,10 @@ void loop() {
 		strip.setBrightness(brightness);
 	}
 
-	Serial.print("Received Value: ");
-	Serial.println(receivedValue);  // Use the receivedValue from bluetooth.cpp
+	// Serial.print("Received Value: ");
+	// Serial.println(receivedValue);  // Use the receivedValue from bluetooth.cpp
 
 
-	updatesPerSecond = 1000.0 / float(millis() - lastUpdate);
-	lastUpdate = millis();
-	Serial.print("Updates per second: ");
-	Serial.println(updatesPerSecond);
-	Serial.print("Active shader: ");
-	Serial.println(shaderManager.activeShader->getName());
-	Serial.print("Active accent shader: ");
-	Serial.println(shaderManager.activeAccentShader->getName());
-	Serial.print("Servo speeds");
-	Serial.println(servoManager.getServoSpeeds());
 
 	lastSample = millis();
 	computeSpectrogram(spectrogram);
@@ -220,4 +209,19 @@ void loop() {
 #endif // RUN_LEDS
 
 #endif // BLUETOOTH_DEBUG_MODE
+
+
+	updatesPerSecond = 1000.0 / float(millis() - lastUpdate);
+	lastUpdate = millis();
+	Serial.print("Updates per second: ");
+	Serial.print(updatesPerSecond);
+	Serial.print("  |  Beat heuristic: ");
+	Serial.println(beatHeuristic);
+
+	// Serial.print("Active shader: ");
+	// Serial.println(shaderManager.activeShader->getName());
+	// Serial.print("Active accent shader: ");
+	// Serial.println(shaderManager.activeAccentShader->getName());
+	// Serial.print("Servo speeds");
+	// Serial.println(servoManager.getServoSpeeds());
 }

@@ -48,6 +48,9 @@ class MyCallbacks : public BLECharacteristicCallbacks {
 			}
 			sendStringToPhone("shaders", shaderNames);  // Send the list when commanded
 		} 
+		else if (value == "getActiveShader") {
+			sendStringToPhone("activeShader", shaderManager.activeShader->getName());
+		}
 		else if (value == "getAccentShaders") {
 			String shaderNames = "";
 			for (const auto& shader : shaderManager.accentShaders) {
@@ -55,6 +58,9 @@ class MyCallbacks : public BLECharacteristicCallbacks {
 			}
 			sendStringToPhone("accentShaders", shaderNames);  // Send the list when commanded
 		} 
+		else if (value == "getActiveAccentShader") {
+			sendStringToPhone("activeAccentShader", shaderManager.activeAccentShader->getName());
+		}
 		else if (value == "getServoSpeeds") {
 			sendStringToPhone("servoSpeeds", servoManager.getServoSpeeds());
 		} 

@@ -92,7 +92,7 @@ float vReal[SAMPLES] = {};
 float vImag[SAMPLES] = {};
 
 
-const float kick_hz_mu = 80.0; // Center frequency in Hz
+const float kick_hz_mu = 60.0; // Center frequency in Hz
 const float kick_hz_sigma = 80.0; // Standard deviation in Hz
 
 float currentBandEnergy[NUM_BANDS];

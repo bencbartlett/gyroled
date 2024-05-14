@@ -87,7 +87,10 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
                 ledCharacteristic = characteristic
                 requestShaderList(peripheral: peripheral)
                 requestAccentShaderList(peripheral: peripheral)
+                requestActiveShader(peripheral: peripheral)
                 requestServoSpeeds(peripheral: peripheral)
+                requestActiveAccentShader(peripheral: peripheral)
+                requestBrightness(peripheral: peripheral)
             }
         }
     }
@@ -107,12 +110,33 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
                 DispatchQueue.main.async {
                     self.viewModel.shaderNames = shaderNames
                 }
-            } else if receivedString.starts(with: "accentShaders:") {
+            } else if receivedString.starts(with: "brightness:") {
+                let brightnessString = receivedString.dropFirst("brightness:".count)
+                if let brightness = Int(brightnessString) {
+                    DispatchQueue.main.async {
+                        self.viewModel.brightness = brightness
+                    }
+                } else {
+                    print("Failed to convert brightness to Int")
+                    // Handle the error or set a default value
+                }
+            } else if receivedString.starts(with: "activeShader:") {
+                let activeShaderName = String(receivedString.dropFirst("activeShader:".count))
+                DispatchQueue.main.async {
+                    self.viewModel.activeShader = activeShaderName
+                }
+            }
+            else if receivedString.starts(with: "accentShaders:") {
                 let accentShaderNames = receivedString
                     .dropFirst("accentShaders:".count)
                     .split(separator: ";").map(String.init)
                 DispatchQueue.main.async {
                     self.viewModel.accentShaderNames = accentShaderNames
+                }
+            } else if receivedString.starts(with: "activeAccentShader:") {
+                let activeAccentShaderName = String(receivedString.dropFirst("activeAccentShader:".count))
+                DispatchQueue.main.async {
+                    self.viewModel.activeAccentShader = activeAccentShaderName
                 }
             } else if receivedString.starts(with: "servoSpeeds:") {
                 let speeds = receivedString
@@ -135,30 +159,25 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     }
     
     func requestShaderList(peripheral: CBPeripheral) {
-        if let characteristic = ledCharacteristic {
-            let commandString = "getShaders"
-            let data = Data(commandString.utf8)
-            peripheral.writeValue(data, for: characteristic, type: .withResponse)
-        }
+        sendCommand(cmd: "getShaders")
+    }
+    
+    func requestActiveShader(peripheral: CBPeripheral) {
+        sendCommand(cmd: "getActiveShader")
     }
     
     func requestAccentShaderList(peripheral: CBPeripheral) {
-        if let characteristic = ledCharacteristic {
-            let commandString = "getAccentShaders"
-            let data = Data(commandString.utf8)
-            peripheral.writeValue(data, for: characteristic, type: .withResponse)
-        }
+        sendCommand(cmd: "getAccentShaders")
+    }
+    
+    func requestActiveAccentShader(peripheral: CBPeripheral) {
+        sendCommand(cmd: "getActiveAccentShader")
     }
     
     func requestServoSpeeds(peripheral: CBPeripheral) {
-        if let characteristic = ledCharacteristic {
-            let commandString = "getServoSpeeds"
-            let data = Data(commandString.utf8)
-            peripheral.writeValue(data, for: characteristic, type: .withResponse)
-        }
+        sendCommand(cmd: "getServoSpeeds")
     }
 
-    
     func sendServoSpeed(servo: Int, speed: Double) {
         sendCommand(cmd: "setServoSpeed:\(servo);\(speed)")
     }
@@ -169,6 +188,10 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     
     func setActiveAccentShader(shader: String) {
         sendCommand(cmd: "setActiveAccentShader:\(shader)")
+    }
+    
+    func requestBrightness(peripheral: CBPeripheral) {
+        sendCommand(cmd: "getBrightness")
     }
     
     func setBrightness(brightness: Int) {
