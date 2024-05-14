@@ -24,6 +24,23 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     override init() {
         super.init()
         centralManager = CBCentralManager(delegate: self, queue: nil)
+        
+        // Setup notification observer for app becoming active
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(appDidBecomeActive),
+            name: UIApplication.didBecomeActiveNotification,
+            object: nil
+        )
+    }
+    
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    @objc private func appDidBecomeActive() {
+        print("App became active - attempting to reconnect.")
+        reconnect()
     }
     
     func centralManagerDidUpdateState(_ central: CBCentralManager) {

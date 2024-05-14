@@ -12,7 +12,7 @@ class TotemViewModel: ObservableObject {
     @Published var accentShaderNames: [String] = []
     @Published var activeShader: String = "Loopy Rainbow"
     @Published var activeAccentShader: String = "(No Accent)"
-    @Published var brightness: Int = 120
+    @Published var brightness: Int = 255
     @Published var servo1Speed: Double = 0.7
     @Published var servo2Speed: Double = 0.8
     @Published var servo3Speed: Double = 1.0
@@ -27,29 +27,25 @@ struct ContentView: View {
         
         NavigationView {
             Form {
-                Button(action: {
-                    bluetoothManager.reconnect()
-                }) {
-                    Text("Reconnect")
-//                        .padding()
-//                        .frame(maxWidth: .infinity)
-//                        .cornerRadius(8)
-                }
                 
                 // Servo control section
-                Section(header: Text("LED Controls")) {
+                Section(header: Text("Hardware Controls")) {
                     HStack {
-                        Text("Brightness")
+                        Text("Brightness    ")
                         Slider(value: Binding(
                             get: { Double(viewModel.brightness) },
                             set: { newValue in viewModel.brightness = Int(newValue) }
                         ), in: 0...255, step: 1) {
-                            Text("Brightness")
+                            Text("Brightness    ")
                         } onEditingChanged: { _ in
                             bluetoothManager.setBrightness(brightness: viewModel.brightness)
                         }
-                        Text(String("\(Int(viewModel.brightness))"))
+                        Text(String(Int(viewModel.brightness)).padding(toLength: 4, withPad: " ", startingAt: 0))
                     }
+                    sliderView(title: "Servo1 Speed", servoIndex: 1, value: $viewModel.servo1Speed)
+                    sliderView(title: "Servo2 Speed", servoIndex: 2, value: $viewModel.servo2Speed)
+                    sliderView(title: "Servo3 Speed", servoIndex: 3, value: $viewModel.servo3Speed)
+                    sliderView(title: "Master Speed", servoIndex: 0, value: $viewModel.servoMasterSpeed)
                 }
                 
                 // Shader selection section
@@ -79,16 +75,8 @@ struct ContentView: View {
                     }
                 }
 
-                // Servo control section
-                Section(header: Text("Servo Controls")) {
-                    sliderView(title: "Servo1 Speed", servoIndex: 1, value: $viewModel.servo1Speed)
-                    sliderView(title: "Servo2 Speed", servoIndex: 2, value: $viewModel.servo2Speed)
-                    sliderView(title: "Servo3 Speed", servoIndex: 3, value: $viewModel.servo3Speed)
-                    sliderView(title: "Master Speed", servoIndex: 0, value: $viewModel.servoMasterSpeed)
-                }
-
                 // Beat drop section
-                Section {
+                Section(header: Text("Daaaanger zone!")) {
                     Button(action: {
                         bluetoothManager.sendCommand(cmd: "beatDrop")
                     }) {
@@ -100,6 +88,15 @@ struct ContentView: View {
                             .background(Color.red)
                             .cornerRadius(8)
                     }
+                }
+                
+                Button(action: {
+                    bluetoothManager.reconnect()
+                }) {
+                    Text("Reconnect")
+//                        .padding()
+//                        .frame(maxWidth: .infinity)
+//                        .cornerRadius(8)
                 }
             }
             .navigationBarTitle("GyroLED Totem Controller", displayMode: .inline)
