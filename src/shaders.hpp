@@ -91,8 +91,6 @@ public:
 };
 
 class LoopyRainbow : public Shader {
-protected:
-	String name = "Loopy Rainbow";
 private:
 	int cycleSpeed = 1000;
 	int fadeVal = 100;
@@ -104,13 +102,38 @@ public:
 			uint32_t pixelHue = frame * cycleSpeed + (i * 65536L / LED_COUNT_TOTAL);
 			ledColors[i] = LedColor(Adafruit_NeoPixel::gamma32(Adafruit_NeoPixel::ColorHSV(pixelHue, 255, 255 * fadeVal / fadeMax)));
 		}
-		frame++;
+	}
+};
+
+class LoopyRainbow2 : public Shader {
+private:
+	int cycleSpeed1 = 500;
+	int cycleSpeed2 = 1000;
+	int cycleSpeed3 = 2000;
+	int fadeVal = 100;
+	int fadeMax = 100;
+public:
+	LoopyRainbow2(LedColor(&colors)[LED_COUNT_TOTAL]) : Shader(colors, "Loopy Rainbow 2") {}
+	void update(int frame) override {
+		for (int i = 0; i < LED_COUNT_RING_1; i++) {
+			uint32_t pixelHue = frame * cycleSpeed1 + (i * 65536L / LED_COUNT_TOTAL);
+			ledColors[i] = LedColor(Adafruit_NeoPixel::gamma32(Adafruit_NeoPixel::ColorHSV(pixelHue, 255, 255 * fadeVal / fadeMax)));
+		}
+		for (int i = 0; i < LED_COUNT_RING_2; i++) {
+			uint32_t pixelHue = frame * cycleSpeed2 + (i * 65536L / LED_COUNT_TOTAL);
+			ledColors[i + LED_COUNT_RING_1] = LedColor(Adafruit_NeoPixel::gamma32(Adafruit_NeoPixel::ColorHSV(pixelHue, 255, 255 * fadeVal / fadeMax)));
+		}
+		for (int i = 0; i < LED_COUNT_RING_3; i++) {
+			uint32_t pixelHue = frame * cycleSpeed3 + (i * 65536L / LED_COUNT_TOTAL);
+			ledColors[i + LED_COUNT_RING_1 + LED_COUNT_RING_2] = LedColor(Adafruit_NeoPixel::gamma32(Adafruit_NeoPixel::ColorHSV(pixelHue, 255, 255 * fadeVal / fadeMax)));
+		}
 	}
 };
 
 class Inferno : public Shader {
 private:
 	int cycleTime = 50;  // Determines how quickly the colors cycle
+	int periods = 3;
 
 	// Define hue ranges for each ring. Values are in degrees (0-360) on the color wheel.
 	struct HueRange {
@@ -119,9 +142,9 @@ private:
 	};
 
 	HueRange ringHueRanges[3] = {
-		{240, 270},  // Ring 1: Blue to Purple (240 is blue, 270 is violet)
-		{270, 300},  // Ring 2: Purple to Magenta (270 is violet, 300 is magenta)
-		{300, 60}    // Ring 3: Magenta to Red to Yellow (300 is magenta, 60 is yellow)
+		{240, 260},  // Ring 1: Blue to Purple (240 is blue, 270 is violet)
+		{260, 300},  // Ring 2: Purple to Magenta (270 is violet, 300 is magenta)
+		{0, 60}    // Ring 3: Magenta to Red to Yellow (300 is magenta, 60 is yellow)
 	};
 
 public:
@@ -140,7 +163,7 @@ public:
 	}
 
 	LedColor getColorForLed(int ledIndex, HueRange hueRange, int frame, int totalLeds) {
-		uint16_t hue = map(int((float(frame) / cycleTime + float(ledIndex) / totalLeds) * 65536) % 65536,
+		uint16_t hue = map(int((float(frame) / cycleTime + .5 * sin(2 * PI * periods * float(ledIndex) / totalLeds)) * 65536) % 65536,
 			0, 65536, hueRange.startHue, hueRange.endHue);
 		return LedColor(Adafruit_NeoPixel::gamma32(Adafruit_NeoPixel::ColorHSV(hue * 182)));  // Multiply by 182 to convert 0-360 to 0-65535
 	}
@@ -149,6 +172,7 @@ public:
 class AquaColors : public Shader {
 private:
 	int cycleTime = 100;  // Determines how quickly the colors cycle
+	int periods = 3;
 
 	// Define hue ranges for each ring. Values are in degrees (0-360) on the color wheel, then converted to 0-65535.
 	struct HueRange {
@@ -157,8 +181,8 @@ private:
 	};
 
 	HueRange ringHueRanges[3] = {
-		{170, 270},  // Ring 1: Blues to Purples (170 is light blue, 270 is violet)
-		{180, 210},  // Ring 2: Cyan Colors (180 is cyan, 210 is deeper cyan)
+		{170, 200},  // Ring 1: Blues to Purples (170 is light blue, 270 is violet)
+		{190, 220},  // Ring 2: Cyan Colors (180 is cyan, 210 is deeper cyan)
 		{150, 180}   // Ring 3: Turquoise Colors (150 is soft turquoise, 180 is cyan)
 	};
 
@@ -178,7 +202,7 @@ public:
 	}
 
 	LedColor getColorForLed(int ledIndex, HueRange hueRange, int frame, int totalLeds) {
-		uint16_t hue = map(int((float(frame) / cycleTime + float(ledIndex) / totalLeds) * 65536) % 65536,
+		uint16_t hue = map(int((float(frame) / cycleTime + .5 * sin(2 * PI * periods * float(ledIndex) / totalLeds)) * 65536) % 65536,
 			0, 65536, hueRange.startHue, hueRange.endHue);
 		return LedColor(Adafruit_NeoPixel::gamma32(Adafruit_NeoPixel::ColorHSV(hue * 182)));  // Multiply by 182 to convert 0-360 to 0-65535
 	}
@@ -188,24 +212,24 @@ public:
 
 class RedSineWave : public Shader {
 private:
-	int periodsPerRing = 5;
+	int periodsPerRing = 3;
 	float speed = 0.015;
 public:
 	RedSineWave(LedColor(&colors)[LED_COUNT_TOTAL]) : Shader(colors, "Red Sine Waves") {}
 	void update(int frame) override {
 		for (int i = 0; i < LED_COUNT_RING_1; i++) {
 			float sineVal = sin(2 * PI * periodsPerRing * (float(i) / LED_COUNT_RING_1 + frame * speed));
-			uint8_t red = 255 * (1 + sineVal) / 2;
+			uint8_t red = 255 * sineVal * sineVal;
 			ledColors[i] = LedColor(red, 0, 0, 0);
 		}
 		for (int i = 0; i < LED_COUNT_RING_2; i++) {
 			float sineVal = sin(2 * PI * periodsPerRing * (float(i) / LED_COUNT_RING_2 + frame * speed));
-			uint8_t red = 255 * (1 + sineVal) / 2;
+			uint8_t red = 255 * sineVal * sineVal;
 			ledColors[i + LED_COUNT_RING_1] = LedColor(red, 0, 0, 0);
 		}
 		for (int i = 0; i < LED_COUNT_RING_3; i++) {
 			float sineVal = sin(2 * PI * periodsPerRing * (float(i) / LED_COUNT_RING_3 + frame * speed));
-			uint8_t red = 255 * (1 + sineVal) / 2;
+			uint8_t red = 255 * sineVal * sineVal;
 			ledColors[i + LED_COUNT_RING_1 + LED_COUNT_RING_2] = LedColor(red, 0, 0, 0);
 		}
 	}
@@ -249,7 +273,7 @@ private:
 	float minWhiteCutoff = 0.05;
 	bool usePureWhite = true;
 	float peak = 0.0;
-	float falloff = 1.0/(30.0 * 0.3); // 0.3 second falloff
+	float falloff = 1.0 / (30.0 * 0.3); // 0.3 second falloff
 public:
 	WhitePeaks(LedColor(&colors)[LED_COUNT_TOTAL]) : AccentShader(colors, "White Peaks") {}
 	void update(int frame, float intensity) override {
@@ -271,11 +295,12 @@ public:
 				fill(LedColor(255, 255, 255, 255), ring_1_midpoint_L - amp1, 2 * amp1);
 				fill(LedColor(255, 255, 255, 255), ring_1_midpoint_R - amp1, 2 * amp1);
 				fill(LedColor(255, 255, 255, 255), ring_2_start, amp2);
-				fill(LedColor(255, 255, 255, 255), ring_2_end-amp2, amp2);
+				fill(LedColor(255, 255, 255, 255), ring_2_end - amp2, amp2);
 				fill(LedColor(255, 255, 255, 255), ring_2_middle - amp2, 2 * amp2);
 				fill(LedColor(255, 255, 255, 255), ring_3_midpoint_L - amp3, 2 * amp3);
 				fill(LedColor(255, 255, 255, 255), ring_3_midpoint_R - amp3, 2 * amp3);
-			} else {
+			}
+			else {
 				for (int i = ring_1_midpoint_L - amp1; i < ring_1_midpoint_L + amp1; i++) { ledColors[i].w = 255; }
 				for (int i = ring_1_midpoint_R - amp1; i < ring_1_midpoint_R + amp1; i++) { ledColors[i].w = 255; }
 				for (int i = ring_2_midpoint_L - amp2; i < ring_2_midpoint_L + amp2; i++) { ledColors[i].w = 255; }
@@ -387,6 +412,7 @@ public:
 	ShaderManager(Adafruit_NeoPixel& ledStrip, LedColor(&colors)[LED_COUNT_TOTAL]) : strip(ledStrip), ledColors(colors) {
 		std::vector<Shader*> shaderList = {
 			new LoopyRainbow(ledColors),
+			new LoopyRainbow2(ledColors),
 			new WhiteOverRainbow(ledColors),
 			new Inferno(ledColors),
 			new RedSineWave(ledColors),
