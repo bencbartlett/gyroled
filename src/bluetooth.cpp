@@ -16,7 +16,7 @@ extern int brightness;
 
 String receivedValue = "None";
 
-BLEServer* pServer;
+BLEServer* pServer;	
 BLEService* pService;
 BLECharacteristic* pCharacteristic;
 BLECharacteristic* pNotifyCharacteristic;

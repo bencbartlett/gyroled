@@ -17,19 +17,56 @@ const int ring_3_midpoint_R = (int)(LED_COUNT_RING_3 * 0.75 + LED_COUNT_RING_2 +
 
 struct LedColor {
 	uint8_t r, g, b, w;
+	LedColor(
+		uint8_t red = 0,
+		uint8_t green = 0,
+		uint8_t blue = 0,
+		uint8_t white = 0
+	) : r(red), g(green), b(blue), w(white) {}
 	LedColor(uint32_t color) {
 		w = (color >> 24) & 0xFF;
 		r = (color >> 16) & 0xFF;
 		g = (color >> 8) & 0xFF;
 		b = color & 0xFF;
 	}
-	LedColor(uint8_t red = 0, uint8_t green = 0, uint8_t blue = 0, uint8_t white = 0) : r(red), g(green), b(blue), w(white) {}
 	uint32_t pack() const {
-		return Adafruit_NeoPixel::Color(g, r, b, w);
+		return Adafruit_NeoPixel::Color(g, r, b, w);  // seems like it always uses GRBW order regardless of what I tell it
+	}
+	static LedColor interpolate(const LedColor& color1, const LedColor& color2, float t) {
+		if (t < 0.0f) t = 0.0f;
+		if (t > 1.0f) t = 1.0f;
+
+		return LedColor(
+			static_cast<uint8_t>(color1.r + (color2.r - color1.r) * t),
+			static_cast<uint8_t>(color1.g + (color2.g - color1.g) * t),
+			static_cast<uint8_t>(color1.b + (color2.b - color1.b) * t),
+			static_cast<uint8_t>(color1.w + (color2.w - color1.w) * t)
+		);
 	}
 };
 
+/**
+ * Filters
+ */
 
+LedColor sinLoops(LedColor inputColor, float theta) {
+	const int periodsPerRing = 3;
+	const int p = 8;
+	float sineVal = sin(2 * PI * periodsPerRing * theta);
+	float amplitude = (1 - pow(sineVal, p));
+	LedColor color(
+		inputColor.r * amplitude,
+		inputColor.g * amplitude,
+		inputColor.b * amplitude,
+		inputColor.w * amplitude
+	);
+	return color;
+}
+
+
+/** 
+ * Shaders
+ */
 
 class Shader {
 protected:
@@ -169,6 +206,46 @@ public:
 	}
 };
 
+// class Inferno : public Shader {
+// private:
+// 	int cycleTime = 50;  // Determines how quickly the colors cycle
+// 	int periods = 3;
+
+// 	LedColor blue;
+// 	LedColor purple;
+// 	LedColor magenta;
+// 	LedColor orange;
+// 	LedColor brightOrange;
+// 	LedColor yellow;
+// public:
+// 	Inferno(LedColor(&colors)[LED_COUNT_TOTAL]) : Shader(colors, "Inferno"):
+// 		blue(15,7,136,0);
+// 		purple(156,24,157,0); 
+// 		magenta(230, 22, 98,0);
+// 		orange(228,91,47, 0);
+// 		brightOrange(243,118,25,0);
+// 		yellow(245,233,37,0);
+// 	{};
+
+// 	void update(int frame) override {
+// 		for (int i = 0; i < LED_COUNT_RING_1; i++) {
+// 			ledColors[i] = getColorForLed(i, ringHueRanges[0], frame, LED_COUNT_RING_1);
+// 		}
+// 		for (int i = 0; i < LED_COUNT_RING_2; i++) {
+// 			ledColors[i + LED_COUNT_RING_1] = getColorForLed(i, ringHueRanges[1], frame, LED_COUNT_RING_2);
+// 		}
+// 		for (int i = 0; i < LED_COUNT_RING_3; i++) {
+// 			ledColors[i + LED_COUNT_RING_1 + LED_COUNT_RING_2] = getColorForLed(i, ringHueRanges[2], frame, LED_COUNT_RING_3);
+// 		}
+// 	}
+
+// 	LedColor getColorForLed(int ledIndex, HueRange hueRange, int frame, int totalLeds) {
+// 		uint16_t hue = map(int((float(frame) / cycleTime + .5 * sin(2 * PI * periods * float(ledIndex) / totalLeds)) * 65536) % 65536,
+// 			0, 65536, hueRange.startHue, hueRange.endHue);
+// 		return LedColor(Adafruit_NeoPixel::gamma32(Adafruit_NeoPixel::ColorHSV(hue * 182)));  // Multiply by 182 to convert 0-360 to 0-65535
+// 	}
+// };
+
 class AquaColors : public Shader {
 private:
 	int cycleTime = 100;  // Determines how quickly the colors cycle
@@ -234,6 +311,31 @@ public:
 		}
 	}
 };
+
+
+class RedSineWave2 : public Shader {
+private:
+	int periodsPerRing = 3;
+	int p = 8;
+	float speed = 0.02;
+public:
+	RedSineWave2(LedColor(&colors)[LED_COUNT_TOTAL]) : Shader(colors, "Red Sine Waves 2") {}
+	void update(int frame) override {
+		for (int i = 0; i < LED_COUNT_RING_1; i++) {
+			float theta = (float(i) / LED_COUNT_RING_1 + frame * speed);
+			ledColors[i] = sinLoops(LedColor(255, 0, 0, 0), theta);
+		}
+		for (int i = 0; i < LED_COUNT_RING_2; i++) {
+			float theta = (float(i) / LED_COUNT_RING_2 + frame * speed);
+			ledColors[i + LED_COUNT_RING_1] = sinLoops(LedColor(255, 60, 0, 0), theta);
+		}
+		for (int i = 0; i < LED_COUNT_RING_3; i++) {
+			float theta = (float(i) / LED_COUNT_RING_3 + frame * speed);
+			ledColors[i + LED_COUNT_RING_1 + LED_COUNT_RING_2] = sinLoops(LedColor(255, 150, 0, 0), theta);
+		}
+	}
+};
+
 
 
 
@@ -416,6 +518,7 @@ public:
 			new WhiteOverRainbow(ledColors),
 			new Inferno(ledColors),
 			new RedSineWave(ledColors),
+			new RedSineWave2(ledColors),
 			new AquaColors(ledColors)
 			// Add more shaders here
 		};
@@ -454,7 +557,7 @@ public:
 			delete shader.second;
 		}
 	}
-
+	
 	void setActiveShader(const String& shaderName) {
 		auto it = shaders.find(shaderName);
 		if (it != shaders.end()) {
