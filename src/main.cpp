@@ -20,7 +20,7 @@ int frame = 0;
 float updatesPerSecond = 0.0;
 unsigned long lastUpdate = 0;
 
-int brightness = 255;
+int brightness = 128;
 Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_RGBW + NEO_KHZ800);
 
 LedColor ledColors[LED_COUNT];
@@ -38,7 +38,12 @@ void setup() {
 	setupBluetooth();
 	#else
 	Serial.begin(115200);
-	shaderManager.setupStrip();
+
+	strip.begin();
+	strip.clear();
+	strip.show();
+	strip.setBrightness(brightness);
+
 	servoManager.setupServos();
 	setupAsyncSampling();
 	setupBluetooth();

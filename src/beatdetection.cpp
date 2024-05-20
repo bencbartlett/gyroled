@@ -6,10 +6,9 @@
 
 
 #define HEURISTIC_BUFFER_SIZE 			2048  // at 30fps this is 68 seconds of context
-
-#define MAXIMUM_BEATS_PER_MINUTE	 	155;
-#define TYPICAL_BEATS_PER_MINUTE 		126;
-#define SINGLE_BEAT_DURATION			100; // in ms, good value range is [50:150]
+#define MAXIMUM_BEATS_PER_MINUTE	 	155
+#define TYPICAL_BEATS_PER_MINUTE 		126
+#define SINGLE_BEAT_DURATION			100  // in ms, good value range is [50:150]
 const int MINIMUM_DELAY_BETWEEN_BEATS = 60000L / MAXIMUM_BEATS_PER_MINUTE;
 
 float heuristicsBuffer[HEURISTIC_BUFFER_SIZE] = {};
