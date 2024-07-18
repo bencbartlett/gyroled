@@ -29,7 +29,8 @@ ShaderManager shaderManager(strip, ledColors);
 
 ServoManager servoManager;
 
-float spectrogram[NUM_BANDS] = { };
+// float spectrogram[NUM_BANDS] = { };
+float frequencies[SAMPLES / 2] = { };
 
 
 void setup() {
@@ -67,8 +68,9 @@ void loop() {
 		strip.setBrightness(brightness);
 	}
 
-	computeSpectrogram(spectrogram);
-	float beatHeuristic = computeBeatHeuristic(spectrogram);
+	// computeSpectrogram(spectrogram);
+	doFFT(frequencies);
+	float beatHeuristic = computeBeatHeuristic(frequencies);
 
 	servoManager.runServos();
 

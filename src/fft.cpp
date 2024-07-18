@@ -11,13 +11,17 @@
 // FFT parameters
 #define SAMPLES 			512		// Must be a power of 2
 #define BUFFER_LENGTH   	512		// Length of the cyclic buffer for reading data; must be at least SAMPLES length
-#define SAMPLING_FREQ 		23000	// Max sampling frequency of the mic if using adc1_get_raw()
+// #define SAMPLING_FREQ 		23000	// Max sampling frequency of the mic if using adc1_get_raw()
+# define SAMPLING_FREQ 	    22050
 // #define SAMPLING_FREQ 	5900 	// Max sampling frequency of the mic if using analogRead()
 #define AMPLITUDE 			100     // Audio amplitude scaling factor
 #define NOISE 				200		// Can be used as a basic noise filter
 #define NUM_BANDS 			8       // Number of bands in the frequency spectrogram
 #define USE_AVERAGING 		true	// Whether to use exponential moving average to smooth out the noise levels
 #define SPECTRUM_EMA_ALPHA 	0.7
+
+#define USE_WLED_FFT        true    // Whether to use the WLED FFT algorithm
+#define NUM_GEQ_CHANNELS 	16 
 
 // ADC parameters
 #define USE_RAW_ADC_READ 	true	// Whether to use adc1_get_raw() (faster) or analogRead() (slower) for sampling
@@ -34,8 +38,19 @@
 #define I2S_SCK 			13      // aka BCLK
 #define I2S_NUM         	I2S_NUM_0
 
+// WLED FFT params
+static float fftResultPink[NUM_GEQ_CHANNELS] = { 1.70f, 1.71f, 1.73f, 1.78f, 1.68f, 1.56f, 1.55f, 1.63f, 1.79f, 1.62f, 1.80f, 2.06f, 2.47f, 3.35f, 6.83f, 9.55f }; // Table of multiplication factors so that we can even out the frequency response.
+static uint8_t FFTScalingMode = 3;            // 0 none; 1 optimized logarithmic; 2 optimized linear; 3 optimized square root
+#define FFT_DOWNSCALE 0.46f                             // downscaling factor for FFT results - for "Flat-Top" window @22Khz, new freq channels
+#define LOG_256  5.54517744f
+static uint8_t soundAgc = 1;                  // Automagic gain control: 0 - none, 1 - normal, 2 - vivid, 3 - lazy (config value)
+static float    multAgc = 1.0f;                 // sample * multAgc = sampleAgc. Our AGC multiplier
+uint8_t sampleGain = 60;
+static uint8_t inputLevel = 128;              // UI slider value
+static uint16_t decayTime = 1400;             // int: decay time in milliseconds.  Default 1.40sec
+bool limiterOn = false;                        // limiter on/off
 
-// Cyclical buffer for storing audio samples
+// Cyclic buffer for storing audio samples
 volatile uint16_t buffer[SAMPLES];
 volatile uint16_t lastIndex = 0;
 
@@ -84,8 +99,15 @@ const int bandLimits[7] = {  // band limits which are invariant under number of 
 	int(229 * scaleFactor)
 };
 
-float amplitudes[NUM_BANDS] = {};
-float avgAmplitudes[NUM_BANDS] = {};
+#if USE_WLED_FFT
+static float amplitudes[NUM_GEQ_CHANNELS] = {};
+static float avgAmplitudes[NUM_GEQ_CHANNELS] = {};
+#else
+static float amplitudes[NUM_BANDS] = {};
+static float avgAmplitudes[NUM_BANDS] = {};
+#endif
+
+static uint8_t fftResult[NUM_GEQ_CHANNELS] = { 0 };// Our calculated freq. channel result table to be used by effects
 
 float avgFrequencyAmplitudes[SAMPLES / 2] = {};
 
@@ -248,7 +270,7 @@ void computeSpectrogram(float spectrogram[NUM_BANDS]) {
 			spectrogram[band] = barHeight;
 		}
 	}
-	
+
 	// float endFFTTime = micros() / 1000.0;
 	// Serial.print("FFT time: ");
 	// Serial.println(endFFTTime - startFFTTime);
@@ -266,7 +288,7 @@ void doFFT(float frequencies[SAMPLES / 2]) {
 	}
 
 	FFT.dcRemoval();
-	FFT.windowing(FFTWindow::Hamming, FFTDirection::Forward);
+	FFT.windowing(FFTWindow::Flat_top, FFTDirection::Forward);
 	FFT.compute(FFTDirection::Forward);
 	FFT.complexToMagnitude();
 
@@ -277,14 +299,163 @@ void doFFT(float frequencies[SAMPLES / 2]) {
 		// if (vReal[i] > NOISE) {
 		frequencies[i] = vReal[i];
 		// }
-		#if USE_AVERAGING 
-			avgFrequencyAmplitudes[i] = (frequencies[i] * SPECTRUM_EMA_ALPHA) + (frequencies[i] * (1.0 - SPECTRUM_EMA_ALPHA));
-			frequencies[i] = avgFrequencyAmplitudes[i];
-		#endif
+#if USE_AVERAGING 
+		avgFrequencyAmplitudes[i] = (frequencies[i] * SPECTRUM_EMA_ALPHA) + (frequencies[i] * (1.0 - SPECTRUM_EMA_ALPHA));
+		frequencies[i] = avgFrequencyAmplitudes[i];
+#endif
 	}
 
 }
 
+// float version of map()
+static float mapf(float x, float in_min, float in_max, float out_min, float out_max) {
+	return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
+
+static float fftAddAvg(int from, int to) {
+	float result = 0.0f;
+	for (int i = from; i <= to; i++) {
+		result += vReal[i];
+	}
+	return result / float(to - from + 1);
+}
+
+
+/**
+ * A version of the FFT code ported from WLED's audio-reactive code
+ */
+void computeSpectrogramWLED(float spectrogram[NUM_BANDS]) {
+	for (int i = 0; i < NUM_BANDS; i++) {
+		amplitudes[i] = 0;
+	}
+
+	int localIndex = lastIndex;
+	for (int i = 0; i < SAMPLES; i++) {
+		vReal[i] = buffer[(localIndex + i) % BUFFER_LENGTH];
+		vImag[i] = 0.0;
+	}
+
+	FFT.dcRemoval();
+	// FFT.windowing(FFTWindow::Hamming, FFTDirection::Forward);
+	FFT.windowing(FFTWindow::Flat_top, FFTDirection::Forward);  // flat top has better amplitude accuracy
+	FFT.compute(FFTDirection::Forward);
+	FFT.complexToMagnitude();
+
+	amplitudes[0] = fftAddAvg(1, 2);               // 1    43 - 86   sub-bass
+	amplitudes[1] = fftAddAvg(2, 3);               // 1    86 - 129  bass
+	amplitudes[2] = fftAddAvg(3, 5);               // 2   129 - 216  bass
+	amplitudes[3] = fftAddAvg(5, 7);               // 2   216 - 301  bass + midrange
+	amplitudes[4] = fftAddAvg(7, 10);              // 3   301 - 430  midrange
+	amplitudes[5] = fftAddAvg(10, 13);             // 3   430 - 560  midrange
+	amplitudes[6] = fftAddAvg(13, 19);             // 5   560 - 818  midrange
+	amplitudes[7] = fftAddAvg(19, 26);             // 7   818 - 1120 midrange -- 1Khz should always be the center !
+	amplitudes[8] = fftAddAvg(26, 33);             // 7  1120 - 1421 midrange
+	amplitudes[9] = fftAddAvg(33, 44);             // 9  1421 - 1895 midrange
+	amplitudes[10] = fftAddAvg(44, 56);            // 12 1895 - 2412 midrange + high mid
+	amplitudes[11] = fftAddAvg(56, 70);            // 14 2412 - 3015 high mid
+	amplitudes[12] = fftAddAvg(70, 86);            // 16 3015 - 3704 high mid
+	amplitudes[13] = fftAddAvg(86, 104);           // 18 3704 - 4479 high mid
+	amplitudes[14] = fftAddAvg(104, 165) * 0.88f;  // 61 4479 - 7106 high mid + high  -- with slight damping
+	amplitudes[15] = fftAddAvg(165, 215) * 0.70f;  // 50 7106 - 9259 high             -- with some damping
+
+	// Process the FFT data into bar heights
+	for (int band = 0; band < NUM_BANDS; band++) {
+		// Scale the bars for the display
+		float barHeight = amplitudes[band] / AMPLITUDE;
+
+		// Exponential moving averaging between frames
+		if (USE_AVERAGING) {
+			avgAmplitudes[band] = (barHeight * SPECTRUM_EMA_ALPHA) + (avgAmplitudes[band] * (1.0 - SPECTRUM_EMA_ALPHA));
+			spectrogram[band] = avgAmplitudes[band];
+		}
+		else {
+			spectrogram[band] = barHeight;
+		}
+	}
+
+	// float endFFTTime = micros() / 1000.0;
+	// Serial.print("FFT time: ");
+	// Serial.println(endFFTTime - startFFTTime);
+}
+
+/**
+ * WLED's post-processing routine
+ */
+static void postProcessFFTResults() {
+	for (int i = 0; i < NUM_GEQ_CHANNELS; i++) {
+
+		if (true) { // noise gate open
+			// Adjustment for frequency curves.
+			amplitudes[i] *= fftResultPink[i];
+			if (FFTScalingMode > 0) amplitudes[i] *= FFT_DOWNSCALE;  // adjustment related to FFT windowing function
+			// Manual linear adjustment of gain using sampleGain adjustment for different input types.
+			amplitudes[i] *= soundAgc ? multAgc : ((float)sampleGain / 40.0f * (float)inputLevel / 128.0f + 1.0f / 16.0f); //apply gain, with inputLevel adjustment
+			if (amplitudes[i] < 0) amplitudes[i] = 0;
+		}
+
+		// smooth results - rise fast, fall slower
+		if (amplitudes[i] > avgAmplitudes[i])   // rise fast 
+			avgAmplitudes[i] = amplitudes[i] * 0.75f + 0.25f * avgAmplitudes[i];  // will need approx 2 cycles (50ms) for converging against amplitudes[i]
+		else {                       // fall slow
+			if (decayTime < 1000) avgAmplitudes[i] = amplitudes[i] * 0.22f + 0.78f * avgAmplitudes[i];       // approx  5 cycles (225ms) for falling to zero
+			else if (decayTime < 2000) avgAmplitudes[i] = amplitudes[i] * 0.17f + 0.83f * avgAmplitudes[i];  // default - approx  9 cycles (225ms) for falling to zero
+			else if (decayTime < 3000) avgAmplitudes[i] = amplitudes[i] * 0.14f + 0.86f * avgAmplitudes[i];  // approx 14 cycles (350ms) for falling to zero
+			else avgAmplitudes[i] = amplitudes[i] * 0.1f + 0.9f * avgAmplitudes[i];                         // approx 20 cycles (500ms) for falling to zero
+		}
+		// constrain internal vars - just to be sure
+		amplitudes[i] = constrain(amplitudes[i], 0.0f, 1023.0f);
+		avgAmplitudes[i] = constrain(avgAmplitudes[i], 0.0f, 1023.0f);
+
+		float currentResult;
+		if (limiterOn == true)
+			currentResult = avgAmplitudes[i];
+		else
+			currentResult = amplitudes[i];
+
+		switch (FFTScalingMode) {
+		case 1:
+			// Logarithmic scaling
+			currentResult *= 0.42f;                      // 42 is the answer ;-)
+			currentResult -= 8.0f;                       // this skips the lowest row, giving some room for peaks
+			if (currentResult > 1.0f) currentResult = logf(currentResult); // log to base "e", which is the fastest log() function
+			else currentResult = 0.0f;                   // special handling, because log(1) = 0; log(0) = undefined
+			currentResult *= 0.85f + (float(i) / 18.0f);  // extra up-scaling for high frequencies
+			currentResult = mapf(currentResult, 0, LOG_256, 0, 255); // map [log(1) ... log(255)] to [0 ... 255]
+			break;
+		case 2:
+			// Linear scaling
+			currentResult *= 0.30f;                     // needs a bit more damping, get stay below 255
+			currentResult -= 4.0f;                       // giving a bit more room for peaks
+			if (currentResult < 1.0f) currentResult = 0.0f;
+			currentResult *= 0.85f + (float(i) / 1.8f);   // extra up-scaling for high frequencies
+			break;
+		case 3:
+			// square root scaling
+			currentResult *= 0.38f;
+			currentResult -= 6.0f;
+			if (currentResult > 1.0f) currentResult = sqrtf(currentResult);
+			else currentResult = 0.0f;                   // special handling, because sqrt(0) = undefined
+			currentResult *= 0.85f + (float(i) / 4.5f);   // extra up-scaling for high frequencies
+			currentResult = mapf(currentResult, 0.0, 16.0, 0.0, 255.0); // map [sqrt(1) ... sqrt(256)] to [0 ... 255]
+			break;
+
+		case 0:
+		default:
+			// no scaling - leave freq bins as-is
+			currentResult -= 4; // just a bit more room for peaks
+			break;
+		}
+
+		// Now, let's dump it all into fftResult. Need to do this, otherwise other routines might grab fftResult values prematurely.
+		if (soundAgc > 0) {  // apply extra "GEQ Gain" if set by user
+			float post_gain = (float)inputLevel / 128.0f;
+			if (post_gain < 1.0f) post_gain = ((post_gain - 1.0f) * 0.8f) + 1.0f;
+			currentResult *= post_gain;
+		}
+		fftResult[i] = constrain((int)currentResult, 0, 255);
+		//   fftResult[i] = constrain(currentResult, 0.0f, 255.0f);
+	}
+}
 
 
 float* applyKickDrumIsolationFilter(float frequencies[SAMPLES / 2]) {
