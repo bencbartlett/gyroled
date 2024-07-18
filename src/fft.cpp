@@ -87,13 +87,15 @@ const int bandLimits[7] = {  // band limits which are invariant under number of 
 float amplitudes[NUM_BANDS] = {};
 float avgAmplitudes[NUM_BANDS] = {};
 
+float avgFrequencyAmplitudes[SAMPLES / 2] = {};
+
 float vReal[SAMPLES] = {};
 float vImag[SAMPLES] = {};
 ArduinoFFT<float> FFT = ArduinoFFT<float>(vReal, vImag, SAMPLES, SAMPLING_FREQ);
 
 // Kick drum isolation filter
 const float kick_hz_mu = 60.0; // Center frequency in Hz
-const float kick_hz_sigma = 80.0; // Standard deviation in Hz
+const float kick_hz_sigma = 40.0; // Standard deviation in Hz
 
 // For computing rolling average of the spectrum
 float currentBandEnergy[NUM_BANDS];
@@ -179,7 +181,9 @@ void setupAsyncSampling() {
 }
 
 
-
+/**
+ * Compute the spectrogram of the audio signal and bin frequencies into bands
+ */
 void computeSpectrogram(float spectrogram[NUM_BANDS]) {
 	for (int i = 0; i < NUM_BANDS; i++) {
 		amplitudes[i] = 0;
@@ -208,7 +212,8 @@ void computeSpectrogram(float spectrogram[NUM_BANDS]) {
 
 	// float startFFTTime = micros() / 1000.0;
 	FFT.dcRemoval();
-	FFT.windowing(FFTWindow::Hamming, FFTDirection::Forward);
+	// FFT.windowing(FFTWindow::Hamming, FFTDirection::Forward);
+	FFT.windowing(FFTWindow::Flat_top, FFTDirection::Forward);  // flat top has better amplitude accuracy
 	FFT.compute(FFTDirection::Forward);
 	FFT.complexToMagnitude();
 
@@ -249,12 +254,47 @@ void computeSpectrogram(float spectrogram[NUM_BANDS]) {
 	// Serial.println(endFFTTime - startFFTTime);
 }
 
-void applyKickDrumIsolationFilter(float spectrumFiltered[SAMPLES / 2]) {
-	for (uint16_t i = 2; i < (SAMPLES >> 1); i++) { // only first half of samples are used up to Nyquist frequency
+/**
+ * Compute the FFT spectrum of the audio signal, keeping the first half of the samples
+ */
+void doFFT(float frequencies[SAMPLES / 2]) {
+
+	int localIndex = lastIndex;
+	for (int i = 0; i < SAMPLES; i++) {
+		vReal[i] = buffer[(localIndex + i) % BUFFER_LENGTH];
+		vImag[i] = 0.0;
+	}
+
+	FFT.dcRemoval();
+	FFT.windowing(FFTWindow::Hamming, FFTDirection::Forward);
+	FFT.compute(FFTDirection::Forward);
+	FFT.complexToMagnitude();
+
+	// Accumulate FFT results
+	frequencies[0] = 0.;
+	frequencies[1] = 0.;
+	for (uint16_t i = 2; i < (SAMPLES >> 1); i++) {
+		// if (vReal[i] > NOISE) {
+		frequencies[i] = vReal[i];
+		// }
+		#if USE_AVERAGING 
+			avgFrequencyAmplitudes[i] = (frequencies[i] * SPECTRUM_EMA_ALPHA) + (frequencies[i] * (1.0 - SPECTRUM_EMA_ALPHA));
+			frequencies[i] = avgFrequencyAmplitudes[i];
+		#endif
+	}
+
+}
+
+
+
+float* applyKickDrumIsolationFilter(float frequencies[SAMPLES / 2]) {
+	float spectrumFiltered[SAMPLES >> 1];
+	for (uint16_t i = 0; i < (SAMPLES >> 1); i++) { // only first half of samples are used up to Nyquist frequency
 		const float hz = i * binFrequencySize;
 		// Kick drums have a fundamental frequency range around 80Hz so we'll weight these higher
-		spectrumFiltered[i] = exp(-0.5 * pow((hz - kick_hz_mu) / kick_hz_sigma, 2)) * vReal[i] * vReal[i];
+		spectrumFiltered[i] = exp(-0.5 * pow((hz - kick_hz_mu) / kick_hz_sigma, 2)) * frequencies[i];
 	}
+	return spectrumFiltered;
 }
 
 float calculateEntropyChange(float spectrumFiltered[SAMPLES / 2], float spectrumFilteredPrev[SAMPLES / 2]) {

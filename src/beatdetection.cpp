@@ -49,9 +49,9 @@ float computePercentile(float buffer[HEURISTIC_BUFFER_SIZE], float percentile) {
 }
 
 
-float computeBeatHeuristic(float fftResults[SAMPLES]) {
+float computeBeatHeuristic(float frequencies[SAMPLES / 2]) {
 
-	applyKickDrumIsolationFilter(spectrumFiltered);
+	float* spectrumFiltered = applyKickDrumIsolationFilter(frequencies);
 	float entropyChange = calculateEntropyChange(spectrumFiltered, spectrumFilteredPrev);
 	float heuristic = entropyChange * calculateRecencyFactor();
 

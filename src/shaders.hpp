@@ -49,11 +49,10 @@ struct LedColor {
  * Filters
  */
 
-LedColor sinLoops(LedColor inputColor, float theta) {
+inline LedColor sinLoops(LedColor inputColor, float theta, int power = 4) {
 	const int periodsPerRing = 3;
-	const int p = 8;
 	float sineVal = sin(2 * PI * periodsPerRing * theta);
-	float amplitude = (1 - pow(sineVal, p));
+	float amplitude = (1 - pow(sineVal, power));
 	LedColor color(
 		inputColor.r * amplitude,
 		inputColor.g * amplitude,
@@ -64,7 +63,7 @@ LedColor sinLoops(LedColor inputColor, float theta) {
 }
 
 
-/** 
+/**
  * Shaders
  */
 
@@ -170,7 +169,7 @@ public:
 class Inferno : public Shader {
 private:
 	int cycleTime = 50;  // Determines how quickly the colors cycle
-	int periods = 3;
+	int periods = 2;
 
 	// Define hue ranges for each ring. Values are in degrees (0-360) on the color wheel.
 	struct HueRange {
@@ -180,8 +179,8 @@ private:
 
 	HueRange ringHueRanges[3] = {
 		{240, 260},  // Ring 1: Blue to Purple (240 is blue, 270 is violet)
-		{260, 300},  // Ring 2: Purple to Magenta (270 is violet, 300 is magenta)
-		{0, 60}    // Ring 3: Magenta to Red to Yellow (300 is magenta, 60 is yellow)
+		{260, 350},  // Ring 2: Purple to Magenta (270 is violet, 300 is magenta)
+		{0, 40}    // Ring 3: Magenta to Red to Yellow (300 is magenta, 60 is yellow)
 	};
 
 public:
@@ -200,7 +199,8 @@ public:
 	}
 
 	LedColor getColorForLed(int ledIndex, HueRange hueRange, int frame, int totalLeds) {
-		uint16_t hue = map(int((float(frame) / cycleTime + .5 * sin(2 * PI * periods * float(ledIndex) / totalLeds)) * 65536) % 65536,
+		float sinVal = sin(2.0 * PI * float(periods) * float(ledIndex) / float(totalLeds));
+		uint16_t hue = map(int((float(frame) / cycleTime + .5 * sinVal) * 65536) % 65536,
 			0, 65536, hueRange.startHue, hueRange.endHue);
 		return LedColor(Adafruit_NeoPixel::gamma32(Adafruit_NeoPixel::ColorHSV(hue * 182)));  // Multiply by 182 to convert 0-360 to 0-65535
 	}
@@ -286,28 +286,25 @@ public:
 };
 
 
-
 class RedSineWave : public Shader {
 private:
 	int periodsPerRing = 3;
+	int p = 2;
 	float speed = 0.015;
 public:
 	RedSineWave(LedColor(&colors)[LED_COUNT_TOTAL]) : Shader(colors, "Red Sine Waves") {}
 	void update(int frame) override {
 		for (int i = 0; i < LED_COUNT_RING_1; i++) {
-			float sineVal = sin(2 * PI * periodsPerRing * (float(i) / LED_COUNT_RING_1 + frame * speed));
-			uint8_t red = 255 * sineVal * sineVal;
-			ledColors[i] = LedColor(red, 0, 0, 0);
+			float theta = (float(i) / LED_COUNT_RING_1 + frame * speed * .7);
+			ledColors[i] = sinLoops(LedColor(255, 0, 0, 0), theta, p);
 		}
 		for (int i = 0; i < LED_COUNT_RING_2; i++) {
-			float sineVal = sin(2 * PI * periodsPerRing * (float(i) / LED_COUNT_RING_2 + frame * speed));
-			uint8_t red = 255 * sineVal * sineVal;
-			ledColors[i + LED_COUNT_RING_1] = LedColor(red, 0, 0, 0);
+			float theta = (float(i) / LED_COUNT_RING_2 + frame * speed * 1.0);
+			ledColors[i + LED_COUNT_RING_1] = sinLoops(LedColor(255, 0, 0, 0), theta, p);
 		}
 		for (int i = 0; i < LED_COUNT_RING_3; i++) {
-			float sineVal = sin(2 * PI * periodsPerRing * (float(i) / LED_COUNT_RING_3 + frame * speed));
-			uint8_t red = 255 * sineVal * sineVal;
-			ledColors[i + LED_COUNT_RING_1 + LED_COUNT_RING_2] = LedColor(red, 0, 0, 0);
+			float theta = (float(i) / LED_COUNT_RING_3 + frame * speed * 1.5);
+			ledColors[i + LED_COUNT_RING_1 + LED_COUNT_RING_2] = sinLoops(LedColor(255, 0, 0, 0), theta, p);
 		}
 	}
 };
@@ -316,22 +313,22 @@ public:
 class RedSineWave2 : public Shader {
 private:
 	int periodsPerRing = 3;
-	int p = 8;
-	float speed = 0.02;
+	int p = 4;
+	float speed = 0.01;
 public:
 	RedSineWave2(LedColor(&colors)[LED_COUNT_TOTAL]) : Shader(colors, "Red Sine Waves 2") {}
 	void update(int frame) override {
 		for (int i = 0; i < LED_COUNT_RING_1; i++) {
 			float theta = (float(i) / LED_COUNT_RING_1 + frame * speed);
-			ledColors[i] = sinLoops(LedColor(255, 0, 0, 0), theta);
+			ledColors[i] = sinLoops(LedColor(255, 0, 0, 0), theta, p);
 		}
 		for (int i = 0; i < LED_COUNT_RING_2; i++) {
 			float theta = (float(i) / LED_COUNT_RING_2 + frame * speed);
-			ledColors[i + LED_COUNT_RING_1] = sinLoops(LedColor(255, 60, 0, 0), theta);
+			ledColors[i + LED_COUNT_RING_1] = sinLoops(LedColor(255, 15, 0, 0), theta, p);
 		}
 		for (int i = 0; i < LED_COUNT_RING_3; i++) {
 			float theta = (float(i) / LED_COUNT_RING_3 + frame * speed);
-			ledColors[i + LED_COUNT_RING_1 + LED_COUNT_RING_2] = sinLoops(LedColor(255, 150, 0, 0), theta);
+			ledColors[i + LED_COUNT_RING_1 + LED_COUNT_RING_2] = sinLoops(LedColor(255, 30, 0, 0), theta, p);
 		}
 	}
 };
@@ -370,12 +367,12 @@ public:
 
 class WhitePeaks : public AccentShader {
 private:
-	float factor = 0.1;
-	float maxWhiteAmount = 0.4;
-	float minWhiteCutoff = 0.05;
+	float factor = 0.07;
+	float maxWhiteAmount = 0.45;
+	float minWhiteCutoff = 0.07;
 	bool usePureWhite = true;
 	float peak = 0.0;
-	float falloff = 1.0 / (30.0 * 0.3); // 0.3 second falloff
+	float falloff = 1.0 / (30.0 * 0.25); // 0.25 second falloff
 public:
 	WhitePeaks(LedColor(&colors)[LED_COUNT_TOTAL]) : AccentShader(colors, "White Peaks") {}
 	void update(int frame, float intensity) override {
@@ -445,9 +442,9 @@ public:
 
 class BeatHueShift : public AccentShader {
 private:
-	float factor = 0.1;
-	float cutoff = 0.2;
-	uint16_t lastHueShift = 0;  // Tracks the last hue shift to create a continuous effect
+	float hueShiftFactor = 0.0002;
+	float cutoff = 1.0;
+	uint16_t phase = 0;  // Tracks the last hue shift to create a continuous effect
 public:
 	BeatHueShift(LedColor(&colors)[LED_COUNT_TOTAL]) : AccentShader(colors, "Beat Hue Shift") {}
 
@@ -456,7 +453,8 @@ public:
 		if (intensity < cutoff) {
 			return;
 		}
-		uint16_t hueShift = (uint16_t)(intensity * factor * 65535) % 65535;
+		uint16_t hueShift = (uint16_t)(intensity * intensity * hueShiftFactor * 65535) % 65535;
+		phase = (phase + hueShift) % 65535;
 
 		for (int i = 0; i < LED_COUNT_TOTAL; i++) {
 			// Convert original RGB to its approximate HSV values for hue manipulation
@@ -464,12 +462,14 @@ public:
 			uint8_t sat, val;
 			rgbToApproximateHsv(ledColors[i].r, ledColors[i].g, ledColors[i].b, hue, sat, val);
 			// Apply hue shift
-			hue = (hue + hueShift + lastHueShift) % 65535;
+			hue = (hue + phase) % 65535;
 			// Convert back to RGB using Adafruit's HSV to RGB conversion
 			ledColors[i] = LedColor(Adafruit_NeoPixel::ColorHSV(hue, sat, val));
+			ledColors[i].r *= constrain(.5 * (1 + intensity), 0., 1.);
+			ledColors[i].g *= constrain(.5 * (1 + intensity), 0., 1.);
+			ledColors[i].b *= constrain(.5 * (1 + intensity), 0., 1.);
+			ledColors[i].w *= constrain(.5 * (1 + intensity), 0., 1.);
 		}
-		// Update lastHueShift to ensure continuity in the next frame
-		lastHueShift = (lastHueShift + hueShift) % 65535;
 	}
 
 	// A simple approximation method to convert RGB to HSV
@@ -557,7 +557,7 @@ public:
 			delete shader.second;
 		}
 	}
-	
+
 	void setActiveShader(const String& shaderName) {
 		auto it = shaders.find(shaderName);
 		if (it != shaders.end()) {
