@@ -28,7 +28,7 @@ bool bufferInitialized = false;
 unsigned long lastBeatTimestamp = 0;
 unsigned long elapsedBeats = 0;
 
-extern int frame;
+extern int frame; // from main.cpp
 
 
 float calculateRecencyFactor() {

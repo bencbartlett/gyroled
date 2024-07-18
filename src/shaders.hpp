@@ -15,7 +15,7 @@ const int ring_2_midpoint_R = (int)(LED_COUNT_RING_2 * 0.75 + LED_COUNT_RING_1 -
 const int ring_3_midpoint_L = (int)(LED_COUNT_RING_3 * 0.25 + LED_COUNT_RING_2 + LED_COUNT_RING_1);
 const int ring_3_midpoint_R = (int)(LED_COUNT_RING_3 * 0.75 + LED_COUNT_RING_2 + LED_COUNT_RING_1);
 
-extern unsigned long lastBeatTimestamp;
+extern unsigned long lastBeatTimestamp;  // Defined in beatdetection.cpp
 extern unsigned long elapsedBeats;
 
 struct LedColor {
