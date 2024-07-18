@@ -522,6 +522,53 @@ public:
 	}
 };
 
+class LightFanIn : public AccentShader {
+private:
+	float animationTime = 2500.0;
+	float whiteFractionOfArc = 0.2;
+public:
+	LightFanIn(LedColor(&colors)[LED_COUNT_TOTAL]) : AccentShader(colors, "Light Fan-In") {}
+	void update(int frame, float intensity) override {
+		
+		float amp = float(millis() - lastBeatTimestamp) / animationTime;
+
+		if (amp <= 1.0) {
+			int amp1 = amp * LED_COUNT_RING_1 / 4;
+			int amp2 = amp * LED_COUNT_RING_2 / 4;
+			int amp3 = amp * LED_COUNT_RING_3 / 4;
+
+			int white1 = whiteFractionOfArc * LED_COUNT_RING_1 / 4;
+			int white2 = whiteFractionOfArc * LED_COUNT_RING_2 / 4;
+			int white3 = whiteFractionOfArc * LED_COUNT_RING_3 / 4;
+
+			if (amp + whiteFractionOfArc > 1) {
+				white1 *= 1 - (amp + whiteFractionOfArc - 1) / whiteFractionOfArc;
+				white2 *= 1 - (amp + whiteFractionOfArc - 1) / whiteFractionOfArc;
+				white3 *= 1 - (amp + whiteFractionOfArc - 1) / whiteFractionOfArc;
+			}
+
+			int ring_2_start = LED_COUNT_RING_1;
+			int ring_2_end = LED_COUNT_RING_1 + LED_COUNT_RING_2;
+			int ring_2_middle = (ring_2_start + ring_2_end) / 2;
+
+			fill(LedColor(255, 255, 255, 255), ring_1_midpoint_L + amp1, white1);
+			fill(LedColor(255, 255, 255, 255), ring_1_midpoint_L - amp1 - white1, white1);
+			fill(LedColor(255, 255, 255, 255), ring_1_midpoint_R + amp1, white1);
+			fill(LedColor(255, 255, 255, 255), ring_1_midpoint_R - amp1 - white1, white1);
+			
+			fill(LedColor(255, 255, 255, 255), ring_2_start + amp2, white2);
+			fill(LedColor(255, 255, 255, 255), ring_2_end - amp2 - white2, white2);
+			fill(LedColor(255, 255, 255, 255), ring_2_middle + amp2, white2);
+			fill(LedColor(255, 255, 255, 255), ring_2_middle - amp2 - white2, white2);
+
+			fill(LedColor(255, 255, 255, 255), ring_3_midpoint_L + amp3, white3);
+			fill(LedColor(255, 255, 255, 255), ring_3_midpoint_L - amp3 - white3, white3);
+			fill(LedColor(255, 255, 255, 255), ring_3_midpoint_R + amp3, white3);
+			fill(LedColor(255, 255, 255, 255), ring_3_midpoint_R - amp3 - white3, white3);
+		}
+	}
+};
+
 class PulsedStrobeOverlay : public AccentShader {
 private:
 	float brightnessScale = 0.25;
@@ -697,7 +744,8 @@ public:
 			new PulsedStrobeOverlay(ledColors),
 			new Strobe(ledColors),
 			new BeatHueShift(ledColors),
-			new BeatHueShift2(ledColors)
+			new BeatHueShift2(ledColors),
+			new LightFanIn(ledColors)
 			// Add more shaders here
 		};
 
