@@ -7,9 +7,10 @@
 
 #define HEURISTIC_BUFFER_SIZE 			2048  // at 30fps this is 68 seconds of context
 #define MAXIMUM_BEATS_PER_MINUTE	 	155
-#define TYPICAL_BEATS_PER_MINUTE 		126
+#define TYPICAL_BEATS_PER_MINUTE 		128
 #define SINGLE_BEAT_DURATION			100  // in ms, good value range is [50:150]
 const int MINIMUM_DELAY_BETWEEN_BEATS = 60000L / MAXIMUM_BEATS_PER_MINUTE;
+const int TYPICAL_DELAY_BETWEEN_BEATS = 60000L / TYPICAL_BEATS_PER_MINUTE;
 
 float heuristicsBuffer[HEURISTIC_BUFFER_SIZE] = {};
 uint16_t heuristicsBufferIndex = 0;
@@ -29,9 +30,11 @@ unsigned long elapsedBeats = 0;
 
 float calculateRecencyFactor() {
 	unsigned long durationSinceLastBeat = millis() - lastBeatTimestamp;
-	int referenceDuration = MINIMUM_DELAY_BETWEEN_BEATS - SINGLE_BEAT_DURATION;
-	// float recencyFactor = constrain(1 - (float(referenceDuration) / durationSinceLastBeat), 0.0, 1.0);
-	float recencyFactor = constrain(float(durationSinceLastBeat) / float(referenceDuration), 0.0, 1.0);
+	// int referenceDuration = MINIMUM_DELAY_BETWEEN_BEATS - SINGLE_BEAT_DURATION;
+	int referenceDuration = TYPICAL_BEATS_PER_MINUTE - SINGLE_BEAT_DURATION;
+	float maxRecencyFactor = 1.2;
+	// float recencyFactor = constrain(1 - (float(referenceDuration) / durationSinceLastBeat), 0.0, maxRecencyFactor);
+	float recencyFactor = constrain(float(durationSinceLastBeat) / float(referenceDuration), 0.0, maxRecencyFactor);
 	return recencyFactor;
 }
 
@@ -53,7 +56,7 @@ float computeBeatHeuristic(float frequencies[SAMPLES / 2]) {
 
 	applyKickDrumIsolationFilter(frequencies, spectrumFiltered);  // applies to spectrumFiltered in-place
 	float entropyChange = calculateEntropyChange(spectrumFiltered, spectrumFilteredPrev);
-	float heuristic = entropyChange * calculateRecencyFactor();
+	float heuristic = entropyChange;
 
 	int time = millis();
 
@@ -79,17 +82,21 @@ float computeBeatHeuristic(float frequencies[SAMPLES / 2]) {
 
 
 	float heuristicThreshold;
-	float lowHeuristicsThreshold;
+	// float lowHeuristicsThreshold;
 	if (time < 60000) {
 		heuristicThreshold = 2.0;
-		lowHeuristicsThreshold = 0.5;
+		// lowHeuristicsThreshold = 0.5;
 	} else {
 		heuristicThreshold = computePercentile(heuristicsBuffer, percentile);
-		lowHeuristicsThreshold = computePercentile(heuristicsBuffer, 45);
+		// lowHeuristicsThreshold = computePercentile(heuristicsBuffer, 45);
 	}
 
+	heuristicsBuffer[heuristicsBufferIndex] = heuristic;
+	heuristicsBufferIndex = (heuristicsBufferIndex + 1) % HEURISTIC_BUFFER_SIZE;
+
 	// float heuristicThreshold = 1.5 * heuristic_ema;
-	if (heuristic > heuristicThreshold) {
+	float heuristicTimeWeighted = heuristic * calculateRecencyFactor();
+	if (heuristicTimeWeighted > heuristicThreshold) {
 		lastBeatTimestamp = millis();
 		// Serial.print("BEAT (threshold) ");
 		// Serial.println(heuristicThreshold);
@@ -98,13 +105,12 @@ float computeBeatHeuristic(float frequencies[SAMPLES / 2]) {
 
 	// Serial.print(heuristic);
 
-	heuristicsBuffer[heuristicsBufferIndex] = heuristic;
-	heuristicsBufferIndex = (heuristicsBufferIndex + 1) % HEURISTIC_BUFFER_SIZE;
+
 
 	// // Clip this without storing it in the buffer
 	// if (heuristic < heuristic_ema) {
 	// 	heuristic = 0.0;
 	// }
 
-	return heuristic;
+	return heuristicTimeWeighted;
 }
