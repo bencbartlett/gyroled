@@ -15,6 +15,9 @@ const int ring_2_midpoint_R = (int)(LED_COUNT_RING_2 * 0.75 + LED_COUNT_RING_1 -
 const int ring_3_midpoint_L = (int)(LED_COUNT_RING_3 * 0.25 + LED_COUNT_RING_2 + LED_COUNT_RING_1);
 const int ring_3_midpoint_R = (int)(LED_COUNT_RING_3 * 0.75 + LED_COUNT_RING_2 + LED_COUNT_RING_1);
 
+extern unsigned long lastBeatTimestamp;
+extern unsigned long elapsedBeats;
+
 struct LedColor {
 	uint8_t r, g, b, w;
 	LedColor(
@@ -32,6 +35,7 @@ struct LedColor {
 	uint32_t pack() const {
 		return Adafruit_NeoPixel::Color(g, r, b, w);  // seems like it always uses GRBW order regardless of what I tell it
 	}
+
 	static LedColor interpolate(const LedColor& color1, const LedColor& color2, float t) {
 		if (t < 0.0f) t = 0.0f;
 		if (t > 1.0f) t = 1.0f;
@@ -42,6 +46,19 @@ struct LedColor {
 			static_cast<uint8_t>(color1.b + uint8_t(float(color2.b - color1.b) * t)),
 			static_cast<uint8_t>(color1.w + uint8_t(float(color2.w - color1.w) * t))
 		);
+	}
+
+	/* Interpolates zig-zagging back and forth, so at 0 it is color1, at 1 it is color2, then at 2 it is color1 again. */
+	static LedColor interpolateZigZag(const LedColor& color1, const LedColor& color2, float t) {
+		float t_mod;
+		int period = static_cast<int>(floor(t));
+		float fractional = t - period;
+		if (period % 2 == 0) {
+			t_mod = fractional;  // Interpolates from 0 to 1
+		} else {
+			t_mod = 1.0f - fractional;  // Interpolates from 1 to 0
+		}
+		return LedColor::interpolate(color1, color2, t_mod);
 	}
 };
 
@@ -239,16 +256,46 @@ public:
 
 	void update(int frame) override {
 		for (int i = 0; i < LED_COUNT_RING_1; i++) {
-			ledColors[i] = LedColor::interpolate(blue, purple, float(2 * periods * i) / LED_COUNT_RING_1);
+			ledColors[i] = LedColor::interpolateZigZag(blue, purple, float(2 * periods * i) / LED_COUNT_RING_1);
 			// ledColors[i] = getColorForLed(i, ringHueRanges[0], frame, LED_COUNT_RING_1);
 		}
 		for (int i = 0; i < LED_COUNT_RING_2; i++) {
-			ledColors[i + LED_COUNT_RING_1] = LedColor::interpolate(magenta, orange, float(2 * periods * i) / LED_COUNT_RING_2);
+			ledColors[i + LED_COUNT_RING_1] = LedColor::interpolateZigZag(magenta, orange, float(2 * periods * i) / LED_COUNT_RING_2);
 			// ledColors[i + LED_COUNT_RING_1] = getColorForLed(i, ringHueRanges[1], frame, LED_COUNT_RING_2);
 		}
 		for (int i = 0; i < LED_COUNT_RING_3; i++) {
-			ledColors[i + LED_COUNT_RING_1 + LED_COUNT_RING_2] = LedColor::interpolate(brightOrange, yellow, float(2 * periods * i) / LED_COUNT_RING_3);
+			ledColors[i + LED_COUNT_RING_1 + LED_COUNT_RING_2] = LedColor::interpolateZigZag(brightOrange, yellow, float(2 * periods * i) / LED_COUNT_RING_3);
 			// ledColors[i + LED_COUNT_RING_1 + LED_COUNT_RING_2] = getColorForLed(i, ringHueRanges[2], frame, LED_COUNT_RING_3);
+		}
+	}
+};
+
+class BluePurple : public Shader {
+private:
+	int cycleTime = 50;  // Determines how quickly the colors cycle
+	int periods = 1;
+
+	LedColor cyan;
+	LedColor blue;
+	LedColor purple;
+	LedColor magenta;
+public:
+	BluePurple(LedColor(&colors)[LED_COUNT_TOTAL]) : Shader(colors, "BluePurple"),
+		cyan(0, 200, 200, 0),
+		blue(0, 20, 255, 0),
+		purple(156, 0, 255, 0),
+		magenta(255, 0, 255, 0)
+	{};
+
+	void update(int frame) override {
+		for (int i = 0; i < LED_COUNT_RING_1; i++) {
+			ledColors[i] = LedColor::interpolateZigZag(blue, purple, float(2 * periods * i) / LED_COUNT_RING_1);
+		}
+		for (int i = 0; i < LED_COUNT_RING_2; i++) {
+			ledColors[i + LED_COUNT_RING_1] = LedColor::interpolateZigZag(blue, purple, float(2 * periods * i) / LED_COUNT_RING_2);
+		}
+		for (int i = 0; i < LED_COUNT_RING_3; i++) {
+			ledColors[i + LED_COUNT_RING_1 + LED_COUNT_RING_2] = LedColor::interpolateZigZag(purple, magenta, float(2 * periods * i) / LED_COUNT_RING_3);
 		}
 	}
 };
@@ -371,7 +418,6 @@ public:
 	}
 };
 
-
 class WhitePeaks : public AccentShader {
 private:
 	float factor = 0.07;
@@ -384,6 +430,62 @@ public:
 	WhitePeaks(LedColor(&colors)[LED_COUNT_TOTAL]) : AccentShader(colors, "White Peaks") {}
 	void update(int frame, float intensity) override {
 		peak = std::max(std::min(std::min(factor * intensity, float(1)), maxWhiteAmount), peak);
+		if (peak < minWhiteCutoff) {
+			return;
+		}
+		int amp1 = peak * LED_COUNT_RING_1 / 4;
+		int amp2 = peak * LED_COUNT_RING_2 / 4;
+		int amp3 = peak * LED_COUNT_RING_3 / 4;
+		// Serial.println(amp1);
+		// Serial.println(amp2);
+		// Serial.println(amp3);
+		if (intensity > 0) {
+			if (usePureWhite) {
+				int ring_2_start = LED_COUNT_RING_1;
+				int ring_2_end = LED_COUNT_RING_1 + LED_COUNT_RING_2;
+				int ring_2_middle = (ring_2_start + ring_2_end) / 2;
+				fill(LedColor(255, 255, 255, 255), ring_1_midpoint_L - amp1, 2 * amp1);
+				fill(LedColor(255, 255, 255, 255), ring_1_midpoint_R - amp1, 2 * amp1);
+				fill(LedColor(255, 255, 255, 255), ring_2_start, amp2);
+				fill(LedColor(255, 255, 255, 255), ring_2_end - amp2, amp2);
+				fill(LedColor(255, 255, 255, 255), ring_2_middle - amp2, 2 * amp2);
+				fill(LedColor(255, 255, 255, 255), ring_3_midpoint_L - amp3, 2 * amp3);
+				fill(LedColor(255, 255, 255, 255), ring_3_midpoint_R - amp3, 2 * amp3);
+			}
+			else {
+				for (int i = ring_1_midpoint_L - amp1; i < ring_1_midpoint_L + amp1; i++) { ledColors[i].w = 255; }
+				for (int i = ring_1_midpoint_R - amp1; i < ring_1_midpoint_R + amp1; i++) { ledColors[i].w = 255; }
+				for (int i = ring_2_midpoint_L - amp2; i < ring_2_midpoint_L + amp2; i++) { ledColors[i].w = 255; }
+				for (int i = ring_2_midpoint_R - amp2; i < ring_2_midpoint_R + amp2; i++) { ledColors[i].w = 255; }
+				for (int i = ring_3_midpoint_L - amp3; i < ring_3_midpoint_L + amp3; i++) { ledColors[i].w = 255; }
+				for (int i = ring_3_midpoint_R - amp3; i < ring_3_midpoint_R + amp3; i++) { ledColors[i].w = 255; }
+			}
+		}
+		peak -= falloff;
+		// Serial.println("done");
+	}
+};
+
+
+class WhitePeaksBeatsOnly : public AccentShader {
+private:
+	float factor = 0.07;
+	float maxWhiteAmount = 0.6;
+	float minWhiteCutoff = 0.01;
+	bool usePureWhite = true;
+	float peak = 0.0;
+	float falloff = 1.0 / (30.0 * 0.15); // 0.15 second falloff
+	float lastBeatTimestamp_internal = 0;
+public:
+	WhitePeaksBeatsOnly(LedColor(&colors)[LED_COUNT_TOTAL]) : AccentShader(colors, "White Peaks (Beats Only)") {}
+	void update(int frame, float intensity) override {
+
+		if (lastBeatTimestamp_internal != lastBeatTimestamp) {
+			// peak = std::max(std::min(std::min(factor * intensity, float(1)), maxWhiteAmount), peak);
+			peak = maxWhiteAmount;
+			lastBeatTimestamp_internal = lastBeatTimestamp;
+		}
+
 		if (peak < minWhiteCutoff) {
 			return;
 		}
@@ -507,6 +609,62 @@ public:
 	}
 };
 
+class BeatHueShift2 : public AccentShader {
+private:
+	float hueShiftAngle = 50.0;
+	float theta = 0.0;
+public:
+	BeatHueShift2(LedColor(&colors)[LED_COUNT_TOTAL]) : AccentShader(colors, "Beat Hue Shift 2") {}
+
+	void update(int frame, float intensity) override {
+		float angle = hueShiftAngle + (rand() % 5);
+		theta = fmod(theta + angle, 360.0);
+		uint16_t phase = uint16_t(theta / 360.0 * 65535) % 65535;
+
+		for (int i = 0; i < LED_COUNT_TOTAL; i++) {
+			// Convert original RGB to its approximate HSV values for hue manipulation
+			uint16_t hue;
+			uint8_t sat, val;
+			rgbToApproximateHsv(ledColors[i].r, ledColors[i].g, ledColors[i].b, hue, sat, val);
+			// Apply hue shift
+			hue = (hue + phase) % 65535;
+			// Convert back to RGB using Adafruit's HSV to RGB conversion
+			ledColors[i] = LedColor(Adafruit_NeoPixel::ColorHSV(hue, sat, val));
+			ledColors[i].r *= constrain(.5 * (1 + intensity), 0., 1.);
+			ledColors[i].g *= constrain(.5 * (1 + intensity), 0., 1.);
+			ledColors[i].b *= constrain(.5 * (1 + intensity), 0., 1.);
+			ledColors[i].w *= constrain(.5 * (1 + intensity), 0., 1.);
+		}
+	}
+
+	// A simple approximation method to convert RGB to HSV
+	// This is a placeholder for you to implement a more accurate conversion if needed
+	void rgbToApproximateHsv(uint8_t r, uint8_t g, uint8_t b, uint16_t& hue, uint8_t& sat, uint8_t& val) {
+		uint8_t min, max, delta;
+		min = r < g ? (r < b ? r : b) : (g < b ? g : b);
+		max = r > g ? (r > b ? r : b) : (g > b ? g : b);
+		val = max;  // value is the maximum of r, g, b
+		delta = max - min;
+		if (delta == 0) { // gray, no color
+			hue = 0;
+			sat = 0;
+		}
+		else { // Colorful
+			sat = 255 * delta / max;
+			if (r == max)
+				hue = (g - b) / (float)delta; // between yellow & magenta
+			else if (g == max)
+				hue = 2 + (b - r) / (float)delta; // between cyan & yellow
+			else
+				hue = 4 + (r - g) / (float)delta; // between magenta & cyan
+			hue *= 60; // degrees
+			if (hue < 0)
+				hue += 360;
+			hue = (uint16_t)(hue / 360.0 * 65535);  // Convert to 0-65535 range
+		}
+	}
+};
+
 
 
 class ShaderManager {
@@ -527,16 +685,19 @@ public:
 			new Inferno2(ledColors),
 			new RedSineWave(ledColors),
 			new RedSquareWave(ledColors),
-			new AquaColors(ledColors)
+			new AquaColors(ledColors),
+			new BluePurple(ledColors)
 			// Add more shaders here
 		};
 
 		std::vector<AccentShader*> accentShaderList = {
 			new NoAccent(ledColors),
 			new WhitePeaks(ledColors),
+			new WhitePeaksBeatsOnly(ledColors),
 			new PulsedStrobeOverlay(ledColors),
 			new Strobe(ledColors),
-			new BeatHueShift(ledColors)
+			new BeatHueShift(ledColors),
+			new BeatHueShift2(ledColors)
 			// Add more shaders here
 		};
 
