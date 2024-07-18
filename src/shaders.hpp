@@ -50,14 +50,24 @@ struct LedColor {
  */
 
 inline LedColor sinLoops(LedColor inputColor, float theta, int power = 4) {
-	const int periodsPerRing = 3;
-	float sineVal = sin(2 * PI * periodsPerRing * theta);
+	float sineVal = sin(theta);
 	float amplitude = (1 - pow(sineVal, power));
 	LedColor color(
 		inputColor.r * amplitude,
 		inputColor.g * amplitude,
 		inputColor.b * amplitude,
 		inputColor.w * amplitude
+	);
+	return color;
+}
+
+inline LedColor squareLoops(LedColor inputColor, float theta) {
+	float squareVal = theta > PI ? 1 : 0;
+	LedColor color(
+		inputColor.r * squareVal,
+		inputColor.g * squareVal,
+		inputColor.b * squareVal,
+		inputColor.w * squareVal
 	);
 	return color;
 }
@@ -292,40 +302,40 @@ public:
 	RedSineWave(LedColor(&colors)[LED_COUNT_TOTAL]) : Shader(colors, "Red Sine Waves") {}
 	void update(int frame) override {
 		for (int i = 0; i < LED_COUNT_RING_1; i++) {
-			float theta = (float(i) / LED_COUNT_RING_1 + frame * speed * .7);
-			ledColors[i] = sinLoops(LedColor(255, 0, 0, 0), theta, p);
+			float theta = 2 * PI * (float(i) / LED_COUNT_RING_1 + frame * speed * .7);
+			ledColors[i] = sinLoops(LedColor(255, 0, 0, 0), theta * periodsPerRing, p);
 		}
 		for (int i = 0; i < LED_COUNT_RING_2; i++) {
-			float theta = (float(i) / LED_COUNT_RING_2 + frame * speed * 1.0);
-			ledColors[i + LED_COUNT_RING_1] = sinLoops(LedColor(255, 0, 0, 0), theta, p);
+			float theta = 2 * PI * (float(i) / LED_COUNT_RING_2 + frame * speed * 1.0);
+			ledColors[i + LED_COUNT_RING_1] = sinLoops(LedColor(255, 0, 0, 0), theta * periodsPerRing, p);
 		}
 		for (int i = 0; i < LED_COUNT_RING_3; i++) {
-			float theta = (float(i) / LED_COUNT_RING_3 + frame * speed * 1.5);
-			ledColors[i + LED_COUNT_RING_1 + LED_COUNT_RING_2] = sinLoops(LedColor(255, 0, 0, 0), theta, p);
+			float theta = 2 * PI * (float(i) / LED_COUNT_RING_3 + frame * speed * 1.5);
+			ledColors[i + LED_COUNT_RING_1 + LED_COUNT_RING_2] = sinLoops(LedColor(255, 0, 0, 0), theta * periodsPerRing, p);
 		}
 	}
 };
 
 
-class RedSineWave2 : public Shader {
+class RedSquareWave : public Shader {
 private:
 	int periodsPerRing = 3;
 	int p = 4;
 	float speed = 0.01;
 public:
-	RedSineWave2(LedColor(&colors)[LED_COUNT_TOTAL]) : Shader(colors, "Red Sine Waves 2") {}
+	RedSquareWave(LedColor(&colors)[LED_COUNT_TOTAL]) : Shader(colors, "Red Square Wave") {}
 	void update(int frame) override {
 		for (int i = 0; i < LED_COUNT_RING_1; i++) {
-			float theta = (float(i) / LED_COUNT_RING_1 + frame * speed);
-			ledColors[i] = sinLoops(LedColor(255, 0, 0, 0), theta, p);
+			float theta = 2 * PI * (float(i) / LED_COUNT_RING_1 + frame * speed);
+			ledColors[i] = squareLoops(LedColor(255, 0, 0, 0), theta * periodsPerRing);
 		}
 		for (int i = 0; i < LED_COUNT_RING_2; i++) {
-			float theta = (float(i) / LED_COUNT_RING_2 + frame * speed);
-			ledColors[i + LED_COUNT_RING_1] = sinLoops(LedColor(255, 15, 0, 0), theta, p);
+			float theta = 2 * PI * (float(i) / LED_COUNT_RING_2 + frame * speed);
+			ledColors[i + LED_COUNT_RING_1] = squareLoops(LedColor(255, 15, 0, 0), theta * periodsPerRing);
 		}
 		for (int i = 0; i < LED_COUNT_RING_3; i++) {
-			float theta = (float(i) / LED_COUNT_RING_3 + frame * speed);
-			ledColors[i + LED_COUNT_RING_1 + LED_COUNT_RING_2] = sinLoops(LedColor(255, 30, 0, 0), theta, p);
+			float theta = 2 * PI * (float(i) / LED_COUNT_RING_3 + frame * speed);
+			ledColors[i + LED_COUNT_RING_1 + LED_COUNT_RING_2] = squareLoops(LedColor(255, 30, 0, 0), theta * periodsPerRing);
 		}
 	}
 };
@@ -516,7 +526,7 @@ public:
 			new Inferno(ledColors),
 			new Inferno2(ledColors),
 			new RedSineWave(ledColors),
-			new RedSineWave2(ledColors),
+			new RedSquareWave(ledColors),
 			new AquaColors(ledColors)
 			// Add more shaders here
 		};
