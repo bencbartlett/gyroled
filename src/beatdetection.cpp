@@ -41,7 +41,7 @@ float computePercentile(float buffer[HEURISTIC_BUFFER_SIZE], float percentile) {
 	int index = static_cast<int>(std::ceil(percentile / 100.0 * HEURISTIC_BUFFER_SIZE) - 1);
 	index = std::max(0, std::min(index, HEURISTIC_BUFFER_SIZE - 1));
 	// Create a copy of the buffer to avoid modifying the original
-	memcpy(bufferCopy, buffer, sizeof(buffer));
+	memcpy(bufferCopy, buffer, HEURISTIC_BUFFER_SIZE * sizeof(float(0)));
 	// Use std::nth_element to rearrange elements
 	std::nth_element(bufferCopy, bufferCopy + index, bufferCopy + HEURISTIC_BUFFER_SIZE);
 	// Return the element at the index
@@ -51,7 +51,7 @@ float computePercentile(float buffer[HEURISTIC_BUFFER_SIZE], float percentile) {
 
 float computeBeatHeuristic(float frequencies[SAMPLES / 2]) {
 
-	float* spectrumFiltered = applyKickDrumIsolationFilter(frequencies);
+	applyKickDrumIsolationFilter(frequencies, spectrumFiltered);  // applies to spectrumFiltered in-place
 	float entropyChange = calculateEntropyChange(spectrumFiltered, spectrumFilteredPrev);
 	float heuristic = entropyChange * calculateRecencyFactor();
 

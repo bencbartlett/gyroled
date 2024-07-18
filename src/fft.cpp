@@ -458,14 +458,14 @@ static void postProcessFFTResults() {
 }
 
 
-float* applyKickDrumIsolationFilter(float frequencies[SAMPLES / 2]) {
-	float spectrumFiltered[SAMPLES >> 1];
+void applyKickDrumIsolationFilter(float frequencies[SAMPLES / 2], float spectrumFiltered[SAMPLES / 2]) {
+	// float spectrumFiltered[SAMPLES >> 1];
 	for (uint16_t i = 0; i < (SAMPLES >> 1); i++) { // only first half of samples are used up to Nyquist frequency
 		const float hz = i * binFrequencySize;
 		// Kick drums have a fundamental frequency range around 80Hz so we'll weight these higher
 		spectrumFiltered[i] = exp(-0.5 * pow((hz - kick_hz_mu) / kick_hz_sigma, 2)) * frequencies[i];
 	}
-	return spectrumFiltered;
+	// return spectrumFiltered;
 }
 
 float calculateEntropyChange(float spectrumFiltered[SAMPLES / 2], float spectrumFilteredPrev[SAMPLES / 2]) {
@@ -473,6 +473,6 @@ float calculateEntropyChange(float spectrumFiltered[SAMPLES / 2], float spectrum
 	for (uint16_t i = 2; i < (SAMPLES >> 1); i++) {
 		entropyChange += abs(spectrumFiltered[i] - spectrumFilteredPrev[i]);
 	}
-	memcpy(spectrumFilteredPrev, spectrumFiltered, sizeof(spectrumFiltered));
+	memcpy(spectrumFilteredPrev, spectrumFiltered, (SAMPLES / 2) * sizeof(spectrumFiltered[0]));
 	return entropyChange;
 }
