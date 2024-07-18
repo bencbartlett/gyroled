@@ -22,10 +22,13 @@ float spectrumFilteredPrev[SAMPLES / 2] = {};
 const float alpha_short = 1.0 / (30.0 * 5.0); // roughly 5 seconds
 const float alpha_long = 1.0 / (30.0 * 60.0); // roughly 60 seconds
 float heuristic_ema = 1.0;
+float heuristicThreshold = 2.0;
 bool bufferInitialized = false;
 
 unsigned long lastBeatTimestamp = 0;
 unsigned long elapsedBeats = 0;
+
+extern int frame;
 
 
 float calculateRecencyFactor() {
@@ -80,17 +83,17 @@ float computeBeatHeuristic(float frequencies[SAMPLES / 2]) {
 	float fudgeFactor = 1.05;
 	float percentile = (1.0 - fudgeFactor * (1. / 30. * MAXIMUM_BEATS_PER_MINUTE / 60.)) * 100;
 
-
-	float heuristicThreshold;
 	// float lowHeuristicsThreshold;
-	if (time < 60000) {
-		heuristicThreshold = 2.0;
-		// lowHeuristicsThreshold = 0.5;
-	} else {
-		heuristicThreshold = computePercentile(heuristicsBuffer, percentile);
-		// lowHeuristicsThreshold = computePercentile(heuristicsBuffer, 45);
+	if (frame % 30 == 0) {
+		if (time < 60000) {
+			heuristicThreshold = 2.0;
+			// lowHeuristicsThreshold = 0.5;
+		} else {
+			heuristicThreshold = computePercentile(heuristicsBuffer, percentile);
+			// lowHeuristicsThreshold = computePercentile(heuristicsBuffer, 45);
+		}
 	}
-
+	
 	heuristicsBuffer[heuristicsBufferIndex] = heuristic;
 	heuristicsBufferIndex = (heuristicsBufferIndex + 1) % HEURISTIC_BUFFER_SIZE;
 
