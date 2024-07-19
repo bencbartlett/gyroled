@@ -19,6 +19,11 @@ float bufferCopy[HEURISTIC_BUFFER_SIZE] = {};
 float spectrumFiltered[SAMPLES / 2] = {};
 float spectrumFilteredPrev[SAMPLES / 2] = {};
 
+static float spectrogram[NUM_GEQ_CHANNELS] = {0. };
+
+static float fftProcessed[NUM_GEQ_CHANNELS] = { 0 };// Our calculated freq. channel result table to be used by effects
+static float fftProcessedPrev[NUM_GEQ_CHANNELS] = { 0 };// Our calculated freq. channel result table to be used by effects
+
 const float alpha_short = 1.0 / (30.0 * 5.0); // roughly 5 seconds
 const float alpha_long = 1.0 / (30.0 * 60.0); // roughly 60 seconds
 float heuristic_ema = 1.0;
@@ -28,13 +33,15 @@ bool bufferInitialized = false;
 unsigned long lastBeatTimestamp = 0;
 unsigned long elapsedBeats = 0;
 
+float frequencies[SAMPLES / 2] = { 0. };
+
 extern int frame; // from main.cpp
 
 
 float calculateRecencyFactor() {
 	unsigned long durationSinceLastBeat = millis() - lastBeatTimestamp;
 	// int referenceDuration = MINIMUM_DELAY_BETWEEN_BEATS - SINGLE_BEAT_DURATION;
-	int referenceDuration = TYPICAL_BEATS_PER_MINUTE - SINGLE_BEAT_DURATION;
+	int referenceDuration = TYPICAL_DELAY_BETWEEN_BEATS - SINGLE_BEAT_DURATION;
 	float maxRecencyFactor = 1.2;
 	// float recencyFactor = constrain(1 - (float(referenceDuration) / durationSinceLastBeat), 0.0, maxRecencyFactor);
 	float recencyFactor = constrain(float(durationSinceLastBeat) / float(referenceDuration), 0.0, maxRecencyFactor);
@@ -55,10 +62,18 @@ float computePercentile(float buffer[HEURISTIC_BUFFER_SIZE], float percentile) {
 }
 
 
-float computeBeatHeuristic(float frequencies[SAMPLES / 2]) {
+float computeBeatHeuristic() {
+
+	doFFT(frequencies);
 
 	applyKickDrumIsolationFilter(frequencies, spectrumFiltered);  // applies to spectrumFiltered in-place
-	float entropyChange = calculateEntropyChange(spectrumFiltered, spectrumFilteredPrev);
+	computeSpectrogramWLED(spectrumFiltered, spectrogram); 
+
+	// computeSpectrogramWLED(frequencies, spectrogram); 
+	
+	postProcessFFTResults(spectrogram, fftProcessed);
+
+	float entropyChange = calculateEntropyChange(fftProcessed, fftProcessedPrev);
 	float heuristic = entropyChange;
 
 	int time = millis();
@@ -106,6 +121,15 @@ float computeBeatHeuristic(float frequencies[SAMPLES / 2]) {
 		elapsedBeats++;
 	}
 
+	// float emaThreshold = 1.3;
+	// float boostingFactor = 1.5;
+	// if (heuristic > heuristic_ema * emaThreshold) {
+	// 	heuristic += boostingFactor * (heuristic - heuristic_ema * emaThreshold);
+	// } 
+	// else if (heuristic < heuristic_ema / emaThreshold)  {
+	// 	heuristic -= boostingFactor * (heuristic_ema / emaThreshold - heuristic);
+	// }
+
 	// Serial.print(heuristic);
 
 
@@ -115,5 +139,6 @@ float computeBeatHeuristic(float frequencies[SAMPLES / 2]) {
 	// 	heuristic = 0.0;
 	// }
 
+	// return heuristic;
 	return heuristicTimeWeighted;
 }

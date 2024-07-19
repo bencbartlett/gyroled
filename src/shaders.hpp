@@ -1,6 +1,7 @@
 #include <map>
 #include <vector>
 #include <Adafruit_NeoPixel.h>
+#include <cmath>
 
 // #define LED_COUNT        648
 #define LED_COUNT_RING_1 257
@@ -41,10 +42,10 @@ struct LedColor {
 		if (t > 1.0f) t = 1.0f;
 
 		return LedColor(
-			static_cast<uint8_t>(color1.r + uint8_t(float(color2.r - color1.r) * t)),
-			static_cast<uint8_t>(color1.g + uint8_t(float(color2.g - color1.g) * t)),
-			static_cast<uint8_t>(color1.b + uint8_t(float(color2.b - color1.b) * t)),
-			static_cast<uint8_t>(color1.w + uint8_t(float(color2.w - color1.w) * t))
+			static_cast<uint8_t>(int(color1.r) + (int(int(color2.r) - int(color1.r)) * t)),
+			static_cast<uint8_t>(int(color1.g) + (int(int(color2.g) - int(color1.g)) * t)),
+			static_cast<uint8_t>(int(color1.b) + (int(int(color2.b) - int(color1.b)) * t)),
+			static_cast<uint8_t>(int(color1.w) + (int(int(color2.w) - int(color1.w)) * t))
 		);
 	}
 
@@ -195,7 +196,7 @@ public:
 
 class Inferno : public Shader {
 private:
-	int cycleTime = 50;  // Determines how quickly the colors cycle
+	int cycleTime = 20;  // Determines how quickly the colors cycle
 	int periods = 2;
 
 	// Define hue ranges for each ring. Values are in degrees (0-360) on the color wheel.
@@ -205,8 +206,8 @@ private:
 	};
 
 	HueRange ringHueRanges[3] = {
-		{240, 260},  // Ring 1: Blue to Purple (240 is blue, 270 is violet)
-		{260, 350},  // Ring 2: Purple to Magenta (270 is violet, 300 is magenta)
+		{240, 270},  // Ring 1: Blue to Purple (240 is blue, 270 is violet)
+		{270, 340},  // Ring 2: Purple to Magenta (270 is violet, 300 is magenta)
 		{0, 40}    // Ring 3: Magenta to Red to Yellow (300 is magenta, 60 is yellow)
 	};
 
@@ -215,20 +216,24 @@ public:
 
 	void update(int frame) override {
 		for (int i = 0; i < LED_COUNT_RING_1; i++) {
-			ledColors[i] = getColorForLed(i, ringHueRanges[0], frame, LED_COUNT_RING_1);
+			ledColors[i] = hueInterpolate(i, ringHueRanges[0], frame, LED_COUNT_RING_1);
 		}
 		for (int i = 0; i < LED_COUNT_RING_2; i++) {
-			ledColors[i + LED_COUNT_RING_1] = getColorForLed(i, ringHueRanges[1], frame, LED_COUNT_RING_2);
+			ledColors[i + LED_COUNT_RING_1] = hueInterpolate(i, ringHueRanges[1], frame, LED_COUNT_RING_2);
 		}
 		for (int i = 0; i < LED_COUNT_RING_3; i++) {
-			ledColors[i + LED_COUNT_RING_1 + LED_COUNT_RING_2] = getColorForLed(i, ringHueRanges[2], frame, LED_COUNT_RING_3);
+			ledColors[i + LED_COUNT_RING_1 + LED_COUNT_RING_2] = hueInterpolate(i, ringHueRanges[2], frame, LED_COUNT_RING_3);
 		}
 	}
 
-	LedColor getColorForLed(int ledIndex, HueRange hueRange, int frame, int totalLeds) {
-		float sinVal = sin(2.0 * PI * float(periods) * float(ledIndex) / float(totalLeds));
-		uint16_t hue = map(int((float(frame) / cycleTime + .5 * sinVal) * 65536) % 65536,
-			0, 65536, hueRange.startHue, hueRange.endHue);
+	LedColor hueInterpolate(int ledIndex, HueRange hueRange, int frame, int totalLeds) {
+		float sinVal = 0.5 + 0.5 * sin(
+			2.0 * PI * (
+			(float(periods) * float(ledIndex) / float(totalLeds)) 
+			+ (float(frame) / cycleTime)
+			)
+		);
+		uint16_t hue = map(int(sinVal * 65536) % 65536, 0, 65536, hueRange.startHue, hueRange.endHue);
 		return LedColor(Adafruit_NeoPixel::gamma32(Adafruit_NeoPixel::ColorHSV(hue * 182)));  // Multiply by 182 to convert 0-360 to 0-65535
 	}
 };
@@ -289,7 +294,7 @@ public:
 
 	void update(int frame) override {
 		for (int i = 0; i < LED_COUNT_RING_1; i++) {
-			ledColors[i] = LedColor::interpolateZigZag(blue, purple, float(2 * periods * i) / LED_COUNT_RING_1);
+			ledColors[i] = LedColor::interpolateZigZag(cyan, blue, float(2 * periods * i) / LED_COUNT_RING_1);
 		}
 		for (int i = 0; i < LED_COUNT_RING_2; i++) {
 			ledColors[i + LED_COUNT_RING_1] = LedColor::interpolateZigZag(blue, purple, float(2 * periods * i) / LED_COUNT_RING_2);
@@ -302,7 +307,7 @@ public:
 
 class AquaColors : public Shader {
 private:
-	int cycleTime = 100;  // Determines how quickly the colors cycle
+	int cycleTime = 30;  // Determines how quickly the colors cycle
 	int periods = 3;
 
 	// Define hue ranges for each ring. Values are in degrees (0-360) on the color wheel, then converted to 0-65535.
@@ -322,19 +327,30 @@ public:
 
 	void update(int frame) override {
 		for (int i = 0; i < LED_COUNT_RING_1; i++) {
-			ledColors[i] = getColorForLed(i, ringHueRanges[0], frame, LED_COUNT_RING_1);
+			ledColors[i] = hueInterpolate(i, ringHueRanges[0], frame, LED_COUNT_RING_1);
 		}
 		for (int i = 0; i < LED_COUNT_RING_2; i++) {
-			ledColors[i + LED_COUNT_RING_1] = getColorForLed(i, ringHueRanges[1], frame, LED_COUNT_RING_2);
+			ledColors[i + LED_COUNT_RING_1] = hueInterpolate(i, ringHueRanges[1], frame, LED_COUNT_RING_2);
 		}
 		for (int i = 0; i < LED_COUNT_RING_3; i++) {
-			ledColors[i + LED_COUNT_RING_1 + LED_COUNT_RING_2] = getColorForLed(i, ringHueRanges[2], frame, LED_COUNT_RING_3);
+			ledColors[i + LED_COUNT_RING_1 + LED_COUNT_RING_2] = hueInterpolate(i, ringHueRanges[2], frame, LED_COUNT_RING_3);
 		}
 	}
 
-	LedColor getColorForLed(int ledIndex, HueRange hueRange, int frame, int totalLeds) {
-		uint16_t hue = map(int((float(frame) / cycleTime + .5 * sin(2 * PI * periods * float(ledIndex) / totalLeds)) * 65536) % 65536,
-			0, 65536, hueRange.startHue, hueRange.endHue);
+	// LedColor getColorForLed(int ledIndex, HueRange hueRange, int frame, int totalLeds) {
+	// 	uint16_t hue = map(int((float(frame) / cycleTime + .5 * sin(2 * PI * periods * float(ledIndex) / totalLeds)) * 65536) % 65536,
+	// 		0, 65536, hueRange.startHue, hueRange.endHue);
+	// 	return LedColor(Adafruit_NeoPixel::gamma32(Adafruit_NeoPixel::ColorHSV(hue * 182)));  // Multiply by 182 to convert 0-360 to 0-65535
+	// }
+
+	LedColor hueInterpolate(int ledIndex, HueRange hueRange, int frame, int totalLeds) {
+		float sinVal = 0.5 + 0.5 * sin(
+			2.0 * PI * (
+			(float(periods) * float(ledIndex) / float(totalLeds)) 
+			+ (float(frame) / cycleTime)
+			)
+		);
+		uint16_t hue = map(int(sinVal * 65536) % 65536, 0, 65536, hueRange.startHue, hueRange.endHue);
 		return LedColor(Adafruit_NeoPixel::gamma32(Adafruit_NeoPixel::ColorHSV(hue * 182)));  // Multiply by 182 to convert 0-360 to 0-65535
 	}
 };
@@ -422,7 +438,7 @@ class WhitePeaks : public AccentShader {
 private:
 	float factor = 0.07;
 	float maxWhiteAmount = 0.45;
-	float minWhiteCutoff = 0.07;
+	float minWhiteCutoff = 0.05;
 	bool usePureWhite = true;
 	float peak = 0.0;
 	float falloff = 1.0 / (30.0 * 0.25); // 0.25 second falloff
@@ -524,8 +540,8 @@ public:
 
 class LightFanIn : public AccentShader {
 private:
-	float animationTime = 2500.0;
-	float whiteFractionOfArc = 0.2;
+	float animationTime = 350.0;
+	float whiteFractionOfArc = 0.3;
 public:
 	LightFanIn(LedColor(&colors)[LED_COUNT_TOTAL]) : AccentShader(colors, "Light Fan-In") {}
 	void update(int frame, float intensity) override {
@@ -664,9 +680,10 @@ public:
 	BeatHueShift2(LedColor(&colors)[LED_COUNT_TOTAL]) : AccentShader(colors, "Beat Hue Shift 2") {}
 
 	void update(int frame, float intensity) override {
-		float angle = hueShiftAngle + (rand() % 5);
-		theta = fmod(theta + angle, 360.0);
-		uint16_t phase = uint16_t(theta / 360.0 * 65535) % 65535;
+		float dTheta = 0.5;
+		theta = fmod(theta + dTheta, 360.0);
+		float angle = fmod(hueShiftAngle * (elapsedBeats % (360/30)), 360.0) + theta;
+		uint16_t phase = uint16_t(fmod(angle, 360.) / 360.0 * 65535) % 65535;
 
 		for (int i = 0; i < LED_COUNT_TOTAL; i++) {
 			// Convert original RGB to its approximate HSV values for hue manipulation

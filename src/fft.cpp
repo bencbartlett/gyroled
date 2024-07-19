@@ -60,7 +60,8 @@ const unsigned int sampling_period_ms = round(1000. / SAMPLING_FREQ);
 const float scaleFactor = float(SAMPLES / (2.0 * 256.0)); // Calculate the scale factor based on new SAMPLES
 
 // The nth frequency bin has frequency = (n) * (sampling frequency / 2) / (number of samples)
-const float binFrequencySize = (SAMPLING_FREQ / 2.0) / SAMPLES;
+// const float binFrequencySize = (SAMPLING_FREQ / 2.0) / SAMPLES;
+const float binFrequencySize = SAMPLING_FREQ / SAMPLES;
 
 // The MGSEQ7 has bands at 63Hz, 160Hz, 400Hz, 1kHz, 2.5kHz, 6.25kHz, 16kHz
 const int bandsHz[NUM_BANDS] = {
@@ -107,7 +108,7 @@ static float amplitudes[NUM_BANDS] = {};
 static float avgAmplitudes[NUM_BANDS] = {};
 #endif
 
-static uint8_t fftResult[NUM_GEQ_CHANNELS] = { 0 };// Our calculated freq. channel result table to be used by effects
+// static uint8_t postProcessedResults[NUM_GEQ_CHANNELS] = { 0 };// Our calculated freq. channel result table to be used by effects
 
 float avgFrequencyAmplitudes[SAMPLES / 2] = {};
 
@@ -116,8 +117,8 @@ float vImag[SAMPLES] = {};
 ArduinoFFT<float> FFT = ArduinoFFT<float>(vReal, vImag, SAMPLES, SAMPLING_FREQ);
 
 // Kick drum isolation filter
-const float kick_hz_mu = 60.0; // Center frequency in Hz
-const float kick_hz_sigma = 40.0; // Standard deviation in Hz
+const float kick_hz_mu = 90.0; // Center frequency in Hz
+const float kick_hz_sigma = 110.0; // Standard deviation in Hz
 
 // For computing rolling average of the spectrum
 float currentBandEnergy[NUM_BANDS];
@@ -294,8 +295,7 @@ void doFFT(float frequencies[SAMPLES / 2]) {
 
 	// Accumulate FFT results
 	frequencies[0] = 0.;
-	frequencies[1] = 0.;
-	for (uint16_t i = 2; i < (SAMPLES >> 1); i++) {
+	for (uint16_t i = 1; i < (SAMPLES >> 1); i++) {
 		// if (vReal[i] > NOISE) {
 		frequencies[i] = vReal[i];
 		// }
@@ -305,6 +305,7 @@ void doFFT(float frequencies[SAMPLES / 2]) {
 #endif
 	}
 
+	// Result is stored in frequencies
 }
 
 // float version of map()
@@ -312,10 +313,10 @@ static float mapf(float x, float in_min, float in_max, float out_min, float out_
 	return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
 
-static float fftAddAvg(int from, int to) {
+static float fftAddAvg(float frequencies[SAMPLES / 2], int from, int to) {
 	float result = 0.0f;
 	for (int i = from; i <= to; i++) {
-		result += vReal[i];
+		result += frequencies[i];
 	}
 	return result / float(to - from + 1);
 }
@@ -324,42 +325,30 @@ static float fftAddAvg(int from, int to) {
 /**
  * A version of the FFT code ported from WLED's audio-reactive code
  */
-void computeSpectrogramWLED(float spectrogram[NUM_BANDS]) {
-	for (int i = 0; i < NUM_BANDS; i++) {
+void computeSpectrogramWLED(float frequencies[SAMPLES / 2], float spectrogram[NUM_GEQ_CHANNELS]) {
+	for (int i = 0; i < NUM_GEQ_CHANNELS; i++) {
 		amplitudes[i] = 0;
 	}
 
-	int localIndex = lastIndex;
-	for (int i = 0; i < SAMPLES; i++) {
-		vReal[i] = buffer[(localIndex + i) % BUFFER_LENGTH];
-		vImag[i] = 0.0;
-	}
-
-	FFT.dcRemoval();
-	// FFT.windowing(FFTWindow::Hamming, FFTDirection::Forward);
-	FFT.windowing(FFTWindow::Flat_top, FFTDirection::Forward);  // flat top has better amplitude accuracy
-	FFT.compute(FFTDirection::Forward);
-	FFT.complexToMagnitude();
-
-	amplitudes[0] = fftAddAvg(1, 2);               // 1    43 - 86   sub-bass
-	amplitudes[1] = fftAddAvg(2, 3);               // 1    86 - 129  bass
-	amplitudes[2] = fftAddAvg(3, 5);               // 2   129 - 216  bass
-	amplitudes[3] = fftAddAvg(5, 7);               // 2   216 - 301  bass + midrange
-	amplitudes[4] = fftAddAvg(7, 10);              // 3   301 - 430  midrange
-	amplitudes[5] = fftAddAvg(10, 13);             // 3   430 - 560  midrange
-	amplitudes[6] = fftAddAvg(13, 19);             // 5   560 - 818  midrange
-	amplitudes[7] = fftAddAvg(19, 26);             // 7   818 - 1120 midrange -- 1Khz should always be the center !
-	amplitudes[8] = fftAddAvg(26, 33);             // 7  1120 - 1421 midrange
-	amplitudes[9] = fftAddAvg(33, 44);             // 9  1421 - 1895 midrange
-	amplitudes[10] = fftAddAvg(44, 56);            // 12 1895 - 2412 midrange + high mid
-	amplitudes[11] = fftAddAvg(56, 70);            // 14 2412 - 3015 high mid
-	amplitudes[12] = fftAddAvg(70, 86);            // 16 3015 - 3704 high mid
-	amplitudes[13] = fftAddAvg(86, 104);           // 18 3704 - 4479 high mid
-	amplitudes[14] = fftAddAvg(104, 165) * 0.88f;  // 61 4479 - 7106 high mid + high  -- with slight damping
-	amplitudes[15] = fftAddAvg(165, 215) * 0.70f;  // 50 7106 - 9259 high             -- with some damping
+	amplitudes[0] = fftAddAvg(frequencies, 1, 2);               // 1    43 - 86   sub-bass
+	amplitudes[1] = fftAddAvg(frequencies, 2, 3);               // 1    86 - 129  bass
+	amplitudes[2] = fftAddAvg(frequencies, 3, 5);               // 2   129 - 216  bass
+	amplitudes[3] = fftAddAvg(frequencies, 5, 7);               // 2   216 - 301  bass + midrange
+	amplitudes[4] = fftAddAvg(frequencies, 7, 10);              // 3   301 - 430  midrange
+	amplitudes[5] = fftAddAvg(frequencies, 10, 13);             // 3   430 - 560  midrange
+	amplitudes[6] = fftAddAvg(frequencies, 13, 19);             // 5   560 - 818  midrange
+	amplitudes[7] = fftAddAvg(frequencies, 19, 26);             // 7   818 - 1120 midrange -- 1Khz should always be the center !
+	amplitudes[8] = fftAddAvg(frequencies, 26, 33);             // 7  1120 - 1421 midrange
+	amplitudes[9] = fftAddAvg(frequencies, 33, 44);             // 9  1421 - 1895 midrange
+	amplitudes[10] = fftAddAvg(frequencies, 44, 56);            // 12 1895 - 2412 midrange + high mid
+	amplitudes[11] = fftAddAvg(frequencies, 56, 70);            // 14 2412 - 3015 high mid
+	amplitudes[12] = fftAddAvg(frequencies, 70, 86);            // 16 3015 - 3704 high mid
+	amplitudes[13] = fftAddAvg(frequencies, 86, 104);           // 18 3704 - 4479 high mid
+	amplitudes[14] = fftAddAvg(frequencies, 104, 165) * 0.88f;  // 61 4479 - 7106 high mid + high  -- with slight damping
+	amplitudes[15] = fftAddAvg(frequencies, 165, 215) * 0.70f;  // 50 7106 - 9259 high             -- with some damping
 
 	// Process the FFT data into bar heights
-	for (int band = 0; band < NUM_BANDS; band++) {
+	for (int band = 0; band < NUM_GEQ_CHANNELS; band++) {
 		// Scale the bars for the display
 		float barHeight = amplitudes[band] / AMPLITUDE;
 
@@ -381,36 +370,36 @@ void computeSpectrogramWLED(float spectrogram[NUM_BANDS]) {
 /**
  * WLED's post-processing routine
  */
-static void postProcessFFTResults() {
+void postProcessFFTResults(float fftResults[NUM_GEQ_CHANNELS], float postProcessedResults[NUM_GEQ_CHANNELS]) {
 	for (int i = 0; i < NUM_GEQ_CHANNELS; i++) {
 
 		if (true) { // noise gate open
 			// Adjustment for frequency curves.
-			amplitudes[i] *= fftResultPink[i];
-			if (FFTScalingMode > 0) amplitudes[i] *= FFT_DOWNSCALE;  // adjustment related to FFT windowing function
+			fftResults[i] *= fftResultPink[i];
+			if (FFTScalingMode > 0) fftResults[i] *= FFT_DOWNSCALE;  // adjustment related to FFT windowing function
 			// Manual linear adjustment of gain using sampleGain adjustment for different input types.
-			amplitudes[i] *= soundAgc ? multAgc : ((float)sampleGain / 40.0f * (float)inputLevel / 128.0f + 1.0f / 16.0f); //apply gain, with inputLevel adjustment
-			if (amplitudes[i] < 0) amplitudes[i] = 0;
+			fftResults[i] *= soundAgc ? multAgc : ((float)sampleGain / 40.0f * (float)inputLevel / 128.0f + 1.0f / 16.0f); //apply gain, with inputLevel adjustment
+			if (fftResults[i] < 0) fftResults[i] = 0;
 		}
 
 		// smooth results - rise fast, fall slower
-		if (amplitudes[i] > avgAmplitudes[i])   // rise fast 
-			avgAmplitudes[i] = amplitudes[i] * 0.75f + 0.25f * avgAmplitudes[i];  // will need approx 2 cycles (50ms) for converging against amplitudes[i]
+		if (fftResults[i] > avgAmplitudes[i])   // rise fast 
+			avgAmplitudes[i] = fftResults[i] * 0.75f + 0.25f * avgAmplitudes[i];  // will need approx 2 cycles (50ms) for converging against amplitudes[i]
 		else {                       // fall slow
-			if (decayTime < 1000) avgAmplitudes[i] = amplitudes[i] * 0.22f + 0.78f * avgAmplitudes[i];       // approx  5 cycles (225ms) for falling to zero
-			else if (decayTime < 2000) avgAmplitudes[i] = amplitudes[i] * 0.17f + 0.83f * avgAmplitudes[i];  // default - approx  9 cycles (225ms) for falling to zero
-			else if (decayTime < 3000) avgAmplitudes[i] = amplitudes[i] * 0.14f + 0.86f * avgAmplitudes[i];  // approx 14 cycles (350ms) for falling to zero
-			else avgAmplitudes[i] = amplitudes[i] * 0.1f + 0.9f * avgAmplitudes[i];                         // approx 20 cycles (500ms) for falling to zero
+			if (decayTime < 1000) avgAmplitudes[i] = fftResults[i] * 0.22f + 0.78f * avgAmplitudes[i];       // approx  5 cycles (225ms) for falling to zero
+			else if (decayTime < 2000) avgAmplitudes[i] = fftResults[i] * 0.17f + 0.83f * avgAmplitudes[i];  // default - approx  9 cycles (225ms) for falling to zero
+			else if (decayTime < 3000) avgAmplitudes[i] = fftResults[i] * 0.14f + 0.86f * avgAmplitudes[i];  // approx 14 cycles (350ms) for falling to zero
+			else avgAmplitudes[i] = fftResults[i] * 0.1f + 0.9f * avgAmplitudes[i];                         // approx 20 cycles (500ms) for falling to zero
 		}
 		// constrain internal vars - just to be sure
-		amplitudes[i] = constrain(amplitudes[i], 0.0f, 1023.0f);
+		fftResults[i] = constrain(fftResults[i], 0.0f, 1023.0f);
 		avgAmplitudes[i] = constrain(avgAmplitudes[i], 0.0f, 1023.0f);
 
 		float currentResult;
 		if (limiterOn == true)
 			currentResult = avgAmplitudes[i];
 		else
-			currentResult = amplitudes[i];
+			currentResult = fftResults[i];
 
 		switch (FFTScalingMode) {
 		case 1:
@@ -446,24 +435,25 @@ static void postProcessFFTResults() {
 			break;
 		}
 
-		// Now, let's dump it all into fftResult. Need to do this, otherwise other routines might grab fftResult values prematurely.
+		// Now, let's dump it all into postProcessedResults. Need to do this, otherwise other routines might grab postProcessedResults values prematurely.
 		if (soundAgc > 0) {  // apply extra "GEQ Gain" if set by user
 			float post_gain = (float)inputLevel / 128.0f;
 			if (post_gain < 1.0f) post_gain = ((post_gain - 1.0f) * 0.8f) + 1.0f;
 			currentResult *= post_gain;
 		}
-		fftResult[i] = constrain((int)currentResult, 0, 255);
-		//   fftResult[i] = constrain(currentResult, 0.0f, 255.0f);
+		// postProcessedResults[i] = constrain((int)currentResult, 0, 255);
+		postProcessedResults[i] = constrain(currentResult, 0.0f, 255.0f);
 	}
 }
 
 
 void applyKickDrumIsolationFilter(float frequencies[SAMPLES / 2], float spectrumFiltered[SAMPLES / 2]) {
 	// float spectrumFiltered[SAMPLES >> 1];
-	for (uint16_t i = 0; i < (SAMPLES >> 1); i++) { // only first half of samples are used up to Nyquist frequency
+	for (uint16_t i = 0; i < SAMPLES / 2; i++) { // only first half of samples are used up to Nyquist frequency
 		const float hz = i * binFrequencySize;
+		const float filterFloor = 0.05;
 		// Kick drums have a fundamental frequency range around 80Hz so we'll weight these higher
-		spectrumFiltered[i] = exp(-0.5 * pow((hz - kick_hz_mu) / kick_hz_sigma, 2)) * frequencies[i];
+		spectrumFiltered[i] = (exp(-0.5 * pow((hz - kick_hz_mu) / kick_hz_sigma, 2)) + filterFloor) * frequencies[i];
 	}
 	// return spectrumFiltered;
 }
@@ -471,8 +461,17 @@ void applyKickDrumIsolationFilter(float frequencies[SAMPLES / 2], float spectrum
 float calculateEntropyChange(float spectrumFiltered[SAMPLES / 2], float spectrumFilteredPrev[SAMPLES / 2]) {
 	float entropyChange = 0;
 	for (uint16_t i = 2; i < (SAMPLES >> 1); i++) {
-		entropyChange += abs(spectrumFiltered[i] - spectrumFilteredPrev[i]);
+		entropyChange += pow(abs(spectrumFiltered[i] - spectrumFilteredPrev[i]), 1);
 	}
 	memcpy(spectrumFilteredPrev, spectrumFiltered, (SAMPLES / 2) * sizeof(spectrumFiltered[0]));
+	return entropyChange;
+}
+
+float calculateEntropyChangeWLED(float spectrumFiltered[NUM_GEQ_CHANNELS], float spectrumFilteredPrev[NUM_GEQ_CHANNELS]) {
+	float entropyChange = 0;
+	for (uint16_t i = 0; i < NUM_GEQ_CHANNELS; i++) {
+		entropyChange += pow(abs(spectrumFiltered[i] - spectrumFilteredPrev[i]), 1);
+	}
+	memcpy(spectrumFilteredPrev, spectrumFiltered, (NUM_GEQ_CHANNELS) * sizeof(spectrumFiltered[0]));
 	return entropyChange;
 }

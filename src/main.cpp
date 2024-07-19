@@ -30,7 +30,7 @@ ShaderManager shaderManager(strip, ledColors);
 ServoManager servoManager;
 
 // float spectrogram[NUM_BANDS] = { };
-float frequencies[SAMPLES / 2] = { };
+// float frequencies[SAMPLES / 2] = { };
 
 
 void setup() {
@@ -69,8 +69,8 @@ void loop() {
 	}
 
 	// computeSpectrogram(spectrogram);
-	doFFT(frequencies);
-	float beatHeuristic = computeBeatHeuristic(frequencies);
+	// doFFT(frequencies);
+	float beatHeuristic = computeBeatHeuristic();
 
 	servoManager.runServos();
 
