@@ -17,7 +17,9 @@
 #define LED_COUNT       	 	648
 
 int frame = 0;
-float updatesPerSecond = 0.0;
+float updatesPerSecond = 30.0;
+
+const float alpha_short = 1.0 / (30.0 * 5.0); // roughly 5 seconds
 unsigned long lastUpdate = 0;
 
 int brightness = 128;
@@ -76,8 +78,10 @@ void loop() {
 
 	shaderManager.run(frame, beatHeuristic);
 
-	updatesPerSecond = 1000.0 / float(millis() - lastUpdate);
+	float updatesPerSecondImmediate = 1000.0 / float(millis() - lastUpdate);
 	lastUpdate = millis();
+
+	updatesPerSecond = alpha_short * updatesPerSecondImmediate + (1.0 - alpha_short) * updatesPerSecond;
 
 	#if OUTPUT_TO_VISUALIZER
 	String foo = "[SPECTROGRAM]:";

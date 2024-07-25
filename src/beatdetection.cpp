@@ -27,7 +27,7 @@ static float fftProcessedPrev[NUM_GEQ_CHANNELS] = { 0 };// Our calculated freq. 
 const float alpha_short = 1.0 / (30.0 * 5.0); // roughly 5 seconds
 const float alpha_long = 1.0 / (30.0 * 60.0); // roughly 60 seconds
 float heuristic_ema = 1.0;
-float heuristicThreshold = 2.0;
+float heuristicThreshold = 2.5; // empirical starting value for until heuristicsBuffer is populated
 bool bufferInitialized = false;
 
 unsigned long lastBeatTimestamp = 0;
@@ -36,6 +36,7 @@ unsigned long elapsedBeats = 0;
 float frequencies[SAMPLES / 2] = { 0. };
 
 extern int frame; // from main.cpp
+extern float updatesPerSecond; // from main.cpp
 
 
 float calculateRecencyFactor() {
@@ -94,32 +95,66 @@ float computeBeatHeuristic() {
 	}
 	heuristic /= heuristic_ema;
 
+	// Write the heuristic to the buffer
+	heuristicsBuffer[heuristicsBufferIndex] = heuristic;
+	heuristicsBufferIndex = (heuristicsBufferIndex + 1) % HEURISTIC_BUFFER_SIZE;
+
+	// PostProcessing
+	float heuristicPostProcessed = heuristic;
+
 	// If the heuristic is above some percentile of the buffer, we have a beat
 	float fudgeFactor = 1.05;
-	float percentile = (1.0 - fudgeFactor * (1. / 30. * MAXIMUM_BEATS_PER_MINUTE / 60.)) * 100;
+	float secondsPerFrame = 1. / updatesPerSecond;
+	float typicalBeatsPerSecond = TYPICAL_BEATS_PER_MINUTE / 60.;
+	float typicalBeatsPerFrame = typicalBeatsPerSecond * secondsPerFrame;
+
+	float percentile = (1.0 - fudgeFactor * typicalBeatsPerFrame) * 100.0;
 
 	// float lowHeuristicsThreshold;
 	if (frame % 30 == 0) {
-		if (time < 60000) {
-			heuristicThreshold = 2.0;
-			// lowHeuristicsThreshold = 0.5;
-		} else {
+		if (time > 30000) {
 			heuristicThreshold = computePercentile(heuristicsBuffer, percentile);
 			// lowHeuristicsThreshold = computePercentile(heuristicsBuffer, 45);
 		}
 	}
-	
-	heuristicsBuffer[heuristicsBufferIndex] = heuristic;
-	heuristicsBufferIndex = (heuristicsBufferIndex + 1) % HEURISTIC_BUFFER_SIZE;
 
-	// float heuristicThreshold = 1.5 * heuristic_ema;
-	float heuristicTimeWeighted = heuristic * calculateRecencyFactor();
-	if (heuristicTimeWeighted > heuristicThreshold) {
+	const bool convolveWithPreviousBeats = true;
+	const float previousBeatBonus = 0.25;
+	// Convolve the heuristics with the previous beats, counting heuristics that are ~126 beats earlier
+	// This could help to fix missing beats
+	int expectedBpm = 126;
+	int bpmWindow = 15;
+	if (convolveWithPreviousBeats) {
+		// Find the heuristics entries from the buffer that are within expectedBpm +/- bpmWindow
+		float beatDurationMin = 60. / (expectedBpm + bpmWindow);  // number of seconds per beat
+		float beatDurationMax = 60. / (expectedBpm - bpmWindow);
+		int timestepsAgoMin = int(updatesPerSecond * beatDurationMin);
+		int timestepsAgoMax = int(updatesPerSecond * beatDurationMax);
+
+		// Sum the heuristics in the range
+		float avgHeuristicInWindow = 0.0;
+		float maxHeuristicInWindow = 0.0;
+		for (int i = timestepsAgoMin; i <= timestepsAgoMax; i++) {
+			int index = (heuristicsBufferIndex - i + HEURISTIC_BUFFER_SIZE) % HEURISTIC_BUFFER_SIZE;
+			avgHeuristicInWindow += heuristicsBuffer[index];
+			maxHeuristicInWindow = std::max(maxHeuristicInWindow, heuristicsBuffer[index]);
+		}
+		avgHeuristicInWindow /= (timestepsAgoMax - timestepsAgoMin + 1);
+
+		if (avgHeuristicInWindow > heuristicThreshold) {
+			heuristicPostProcessed += previousBeatBonus * maxHeuristicInWindow;
+		}
+	}
+
+		// float heuristicThreshold = 1.5 * heuristic_ema;
+	heuristicPostProcessed *= calculateRecencyFactor();
+	if (heuristicPostProcessed > heuristicThreshold) {
 		lastBeatTimestamp = millis();
 		// Serial.print("BEAT (threshold) ");
 		// Serial.println(heuristicThreshold);
 		elapsedBeats++;
 	}
+
 
 	// float emaThreshold = 1.3;
 	// float boostingFactor = 1.5;
@@ -140,5 +175,5 @@ float computeBeatHeuristic() {
 	// }
 
 	// return heuristic;
-	return heuristicTimeWeighted;
+	return heuristicPostProcessed;
 }
