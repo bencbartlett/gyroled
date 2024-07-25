@@ -20,6 +20,8 @@ private:
 	bool updateServo = true; // Flag to control servo update
 	unsigned long lastServoUpdate = 0;
 public:
+	bool hasPhoneEverConnected = false;
+
 	ServoManager() {
 		#if SERVO_DEBUG_MODE
 		servo_master_speed = 0.0;
@@ -65,6 +67,13 @@ public:
 	}
 
 	void runServos() {
+		if (servo_master_speed < 0.1) {
+			// Turn servos on after 30s in case I forget to turn off servo debug mode
+			if (!hasPhoneEverConnected && millis() > 30000) {
+				servo_master_speed = 0.3;
+			}
+		}
+
 		if (updateServo) {
 			// Example servo movements
 			servo1.write(int(90 + 90 * (servo_master_speed * servo1_speed)));

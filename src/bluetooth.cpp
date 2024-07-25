@@ -105,8 +105,15 @@ class MyCallbacks : public BLECharacteristicCallbacks {
 };
 
 class MyServerCallbacks: public BLEServerCallbacks {
+
+	bool hasEverConnected = false;
+
+
     void onConnect(BLEServer* server) {
         Serial.println("Device connected");
+		hasEverConnected = true;
+		shaderManager.hasPhoneEverConnected = true;
+		servoManager.hasPhoneEverConnected = true;
     }
 
     void onDisconnect(BLEServer* server) {

@@ -334,7 +334,7 @@ private:
 	LedColor purple;
 	LedColor magenta;
 public:
-	BluePurple(LedColor(&colors)[LED_COUNT_TOTAL]) : Shader(colors, "BluePurple"),
+	BluePurple(LedColor(&colors)[LED_COUNT_TOTAL]) : Shader(colors, "Blue Purple"),
 		cyan(0, 200, 200, 0),
 		blue(0, 20, 255, 0),
 		purple(156, 0, 255, 0),
@@ -822,7 +822,10 @@ class ShaderManager {
 private:
 	Adafruit_NeoPixel& strip;
 	LedColor(&ledColors)[LED_COUNT_TOTAL];
+	// unsigned long lastShaderChangeMs = 0;
 public:
+	bool hasPhoneEverConnected = false;
+
 	std::map<String, Shader*> shaders;
 	std::map<String, AccentShader*> accentShaders;
 	Shader* activeShader = nullptr;
@@ -885,6 +888,7 @@ public:
 		auto it = shaders.find(shaderName);
 		if (it != shaders.end()) {
 			activeShader = it->second;
+			// lastShaderChangeMs = millis();
 		}
 		else {
 			Serial.println("Shader not found");
@@ -902,6 +906,23 @@ public:
 	}
 
 	void run(int frame, float intensity) {
+		// If phone was never connected let's cycle through the good shaders
+		int tenMins = 30 * 60 * 10;
+		if (!hasPhoneEverConnected && frame % tenMins == tenMins - 1) {
+			// Change the shader
+			int changeFreq = 30 * 60 * 5; // 5 mins
+			int index = int(frame / changeFreq) % 5;
+			std::string goodShaderNames[5] = {
+				"Inferno",
+				"Red Sine Waves",
+				"Aqua Colors",
+				"Blue Purple",
+				"Loopy Rainbow"
+			};
+			setActiveShader(goodShaderNames[index].c_str());
+		}
+
+
 		activeShader->update(frame);
 		activeAccentShader->update(frame, intensity);
 		// Flush the ledColors to the strip
