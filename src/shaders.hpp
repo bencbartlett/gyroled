@@ -11,8 +11,8 @@
 
 const int ring_1_midpoint_L = (int)(LED_COUNT_RING_1 * 0.25);
 const int ring_1_midpoint_R = (int)(LED_COUNT_RING_1 * 0.75 + 1); // fudge factor
-const int ring_2_midpoint_L = (int)(LED_COUNT_RING_2 * 0.25 + LED_COUNT_RING_1);
-const int ring_2_midpoint_R = (int)(LED_COUNT_RING_2 * 0.75 + LED_COUNT_RING_1 - 1); // fudge factor
+const int ring_2_midpoint_U = (int)(LED_COUNT_RING_2 * 0.25 + LED_COUNT_RING_1);
+const int ring_2_midpoint_D = (int)(LED_COUNT_RING_2 * 0.75 + LED_COUNT_RING_1 - 1); // fudge factor
 const int ring_3_midpoint_L = (int)(LED_COUNT_RING_3 * 0.25 + LED_COUNT_RING_2 + LED_COUNT_RING_1);
 const int ring_3_midpoint_R = (int)(LED_COUNT_RING_3 * 0.75 + LED_COUNT_RING_2 + LED_COUNT_RING_1);
 
@@ -56,12 +56,62 @@ struct LedColor {
 		float fractional = t - period;
 		if (period % 2 == 0) {
 			t_mod = fractional;  // Interpolates from 0 to 1
-		} else {
+		}
+		else {
 			t_mod = 1.0f - fractional;  // Interpolates from 1 to 0
 		}
 		return LedColor::interpolate(color1, color2, t_mod);
 	}
+
+	static LedColor hueInterpolate(float t, int startHue, int endHue) {
+		if (endHue < startHue) {
+			endHue += 360;
+		}
+		uint16_t hue = map(int(t * 65536) % 65536, 0, 65536, startHue, endHue);
+		hue = hue % 360;
+		return LedColor(Adafruit_NeoPixel::gamma32(Adafruit_NeoPixel::ColorHSV(hue * 182)));  // Multiply by 182 to convert 0-360 to 0-65535
+	}
+
+	static LedColor hueInterpolateCCW(float t, int startHue, int endHue) {
+		if (startHue < endHue) {
+			startHue += 360;
+		}
+		uint16_t hue = map(int(t * 65536) % 65536, 0, 65536, startHue, endHue);
+		hue = hue % 360;
+		return LedColor(Adafruit_NeoPixel::gamma32(Adafruit_NeoPixel::ColorHSV(hue * 182)));  // Multiply by 182 to convert 0-360 to 0-65535
+	}
 };
+
+/**
+ * LED helper functions
+ */
+
+// Returns the x position of a LED on any ring, normalized between -1 and +1
+inline float getXpos(int ledIndex) {
+	if (ledIndex < LED_COUNT_RING_1) {
+		return sin(2 * PI * ledIndex / LED_COUNT_RING_1);
+	}
+	else if (ledIndex < LED_COUNT_RING_2) {
+		return -1.0 * cos(2 * PI * (ledIndex - LED_COUNT_RING_1) / LED_COUNT_RING_2);
+	}
+	else {
+		return sin(2 * PI * (ledIndex - LED_COUNT_RING_1 - LED_COUNT_RING_2) / LED_COUNT_RING_3);
+	}
+}
+
+// Returns the y position of a LED on any ring, normalized between -1 and +1
+inline float getYpos(int ledIndex) {
+	if (ledIndex < LED_COUNT_RING_1) {
+		return -1.0 * cos(2 * PI * ledIndex / LED_COUNT_RING_1);
+	}
+	else if (ledIndex < LED_COUNT_RING_2) {
+		return -1.0 * sin(2 * PI * (ledIndex - LED_COUNT_RING_1) / LED_COUNT_RING_2);
+	}
+	else {
+		return -1.0 * cos(2 * PI * (ledIndex - LED_COUNT_RING_1 - LED_COUNT_RING_2) / LED_COUNT_RING_3);
+	}
+}
+
 
 /**
  * Filters
@@ -229,9 +279,9 @@ public:
 	LedColor hueInterpolate(int ledIndex, HueRange hueRange, int frame, int totalLeds) {
 		float sinVal = 0.5 + 0.5 * sin(
 			2.0 * PI * (
-			(float(periods) * float(ledIndex) / float(totalLeds)) 
-			+ (float(frame) / cycleTime)
-			)
+				(float(periods) * float(ledIndex) / float(totalLeds))
+				+ (float(frame) / cycleTime)
+				)
 		);
 		uint16_t hue = map(int(sinVal * 65536) % 65536, 0, 65536, hueRange.startHue, hueRange.endHue);
 		return LedColor(Adafruit_NeoPixel::gamma32(Adafruit_NeoPixel::ColorHSV(hue * 182)));  // Multiply by 182 to convert 0-360 to 0-65535
@@ -251,13 +301,12 @@ private:
 	LedColor yellow;
 public:
 	Inferno2(LedColor(&colors)[LED_COUNT_TOTAL]) : Shader(colors, "Inferno2"),
-		blue(15,7,136,0),
-		purple(156,24,157,0),
-		magenta(230, 22, 98,0),
-		orange(228,91,47, 0),
-		brightOrange(243,118,25,0),
-		yellow(245,233,37,0)
-	{};
+		blue(15, 7, 136, 0),
+		purple(156, 24, 157, 0),
+		magenta(230, 22, 98, 0),
+		orange(228, 91, 47, 0),
+		brightOrange(243, 118, 25, 0),
+		yellow(245, 233, 37, 0) {};
 
 	void update(int frame) override {
 		for (int i = 0; i < LED_COUNT_RING_1; i++) {
@@ -289,8 +338,7 @@ public:
 		cyan(0, 200, 200, 0),
 		blue(0, 20, 255, 0),
 		purple(156, 0, 255, 0),
-		magenta(255, 0, 255, 0)
-	{};
+		magenta(255, 0, 255, 0) {};
 
 	void update(int frame) override {
 		for (int i = 0; i < LED_COUNT_RING_1; i++) {
@@ -346,9 +394,9 @@ public:
 	LedColor hueInterpolate(int ledIndex, HueRange hueRange, int frame, int totalLeds) {
 		float sinVal = 0.5 + 0.5 * sin(
 			2.0 * PI * (
-			(float(periods) * float(ledIndex) / float(totalLeds)) 
-			+ (float(frame) / cycleTime)
-			)
+				(float(periods) * float(ledIndex) / float(totalLeds))
+				+ (float(frame) / cycleTime)
+				)
 		);
 		uint16_t hue = map(int(sinVal * 65536) % 65536, 0, 65536, hueRange.startHue, hueRange.endHue);
 		return LedColor(Adafruit_NeoPixel::gamma32(Adafruit_NeoPixel::ColorHSV(hue * 182)));  // Multiply by 182 to convert 0-360 to 0-65535
@@ -404,6 +452,37 @@ public:
 };
 
 
+class Cuttlefish : public Shader {
+private:
+	int periodsPerRing = 3;
+	int p = 4;
+	float speed = 0.01;
+
+	int startHue = 190;
+	int endHue = 340;
+
+	// Define hue ranges for each ring. Values are in degrees (0-360) on the color wheel, then converted to 0-65535.
+	struct HueRange {
+		uint16_t startHue;
+		uint16_t endHue;
+	};
+
+	HueRange ringHueRanges[3] = {
+		{170, 200},  // Ring 1: Blues to Purples (170 is light blue, 270 is violet)
+		{190, 220},  // Ring 2: Cyan Colors (180 is cyan, 210 is deeper cyan)
+		{150, 180}   // Ring 3: Turquoise Colors (150 is soft turquoise, 180 is cyan)
+	};
+
+public:
+	Cuttlefish(LedColor(&colors)[LED_COUNT_TOTAL]) : Shader(colors, "Cuttlefish") {}
+	void update(int frame) override {
+		for (int i = 0; i < LED_COUNT_TOTAL; i++) {
+			float x = getXpos(i);
+			float t = pow(sin(PI / 2 * x), 2);
+			ledColors[i] = LedColor::hueInterpolate(t, startHue, endHue);
+		}
+	}
+}; 
 
 
 class AccentShader {
@@ -471,8 +550,8 @@ public:
 			else {
 				for (int i = ring_1_midpoint_L - amp1; i < ring_1_midpoint_L + amp1; i++) { ledColors[i].w = 255; }
 				for (int i = ring_1_midpoint_R - amp1; i < ring_1_midpoint_R + amp1; i++) { ledColors[i].w = 255; }
-				for (int i = ring_2_midpoint_L - amp2; i < ring_2_midpoint_L + amp2; i++) { ledColors[i].w = 255; }
-				for (int i = ring_2_midpoint_R - amp2; i < ring_2_midpoint_R + amp2; i++) { ledColors[i].w = 255; }
+				for (int i = ring_2_midpoint_U - amp2; i < ring_2_midpoint_U + amp2; i++) { ledColors[i].w = 255; }
+				for (int i = ring_2_midpoint_D - amp2; i < ring_2_midpoint_D + amp2; i++) { ledColors[i].w = 255; }
 				for (int i = ring_3_midpoint_L - amp3; i < ring_3_midpoint_L + amp3; i++) { ledColors[i].w = 255; }
 				for (int i = ring_3_midpoint_R - amp3; i < ring_3_midpoint_R + amp3; i++) { ledColors[i].w = 255; }
 			}
@@ -527,8 +606,8 @@ public:
 			else {
 				for (int i = ring_1_midpoint_L - amp1; i < ring_1_midpoint_L + amp1; i++) { ledColors[i].w = 255; }
 				for (int i = ring_1_midpoint_R - amp1; i < ring_1_midpoint_R + amp1; i++) { ledColors[i].w = 255; }
-				for (int i = ring_2_midpoint_L - amp2; i < ring_2_midpoint_L + amp2; i++) { ledColors[i].w = 255; }
-				for (int i = ring_2_midpoint_R - amp2; i < ring_2_midpoint_R + amp2; i++) { ledColors[i].w = 255; }
+				for (int i = ring_2_midpoint_U - amp2; i < ring_2_midpoint_U + amp2; i++) { ledColors[i].w = 255; }
+				for (int i = ring_2_midpoint_D - amp2; i < ring_2_midpoint_D + amp2; i++) { ledColors[i].w = 255; }
 				for (int i = ring_3_midpoint_L - amp3; i < ring_3_midpoint_L + amp3; i++) { ledColors[i].w = 255; }
 				for (int i = ring_3_midpoint_R - amp3; i < ring_3_midpoint_R + amp3; i++) { ledColors[i].w = 255; }
 			}
@@ -542,11 +621,13 @@ class LightFanIn : public AccentShader {
 private:
 	float animationTime = 350.0;
 	float whiteFractionOfArc = 0.3;
+	bool pulseOnAllRings = false;
 public:
 	LightFanIn(LedColor(&colors)[LED_COUNT_TOTAL]) : AccentShader(colors, "Light Fan-In") {}
 	void update(int frame, float intensity) override {
-		
+
 		float amp = float(millis() - lastBeatTimestamp) / animationTime;
+		int ringIndex = elapsedBeats % 3;
 
 		if (amp <= 1.0) {
 			int amp1 = amp * LED_COUNT_RING_1 / 4;
@@ -567,20 +648,26 @@ public:
 			int ring_2_end = LED_COUNT_RING_1 + LED_COUNT_RING_2;
 			int ring_2_middle = (ring_2_start + ring_2_end) / 2;
 
-			fill(LedColor(255, 255, 255, 255), ring_1_midpoint_L + amp1, white1);
-			fill(LedColor(255, 255, 255, 255), ring_1_midpoint_L - amp1 - white1, white1);
-			fill(LedColor(255, 255, 255, 255), ring_1_midpoint_R + amp1, white1);
-			fill(LedColor(255, 255, 255, 255), ring_1_midpoint_R - amp1 - white1, white1);
-			
-			fill(LedColor(255, 255, 255, 255), ring_2_start + amp2, white2);
-			fill(LedColor(255, 255, 255, 255), ring_2_end - amp2 - white2, white2);
-			fill(LedColor(255, 255, 255, 255), ring_2_middle + amp2, white2);
-			fill(LedColor(255, 255, 255, 255), ring_2_middle - amp2 - white2, white2);
+			if (pulseOnAllRings || ringIndex == 0) {
+				fill(LedColor(255, 255, 255, 255), ring_1_midpoint_L + amp1, white1);
+				fill(LedColor(255, 255, 255, 255), ring_1_midpoint_L - amp1 - white1, white1);
+				fill(LedColor(255, 255, 255, 255), ring_1_midpoint_R + amp1, white1);
+				fill(LedColor(255, 255, 255, 255), ring_1_midpoint_R - amp1 - white1, white1);
+			}
 
-			fill(LedColor(255, 255, 255, 255), ring_3_midpoint_L + amp3, white3);
-			fill(LedColor(255, 255, 255, 255), ring_3_midpoint_L - amp3 - white3, white3);
-			fill(LedColor(255, 255, 255, 255), ring_3_midpoint_R + amp3, white3);
-			fill(LedColor(255, 255, 255, 255), ring_3_midpoint_R - amp3 - white3, white3);
+			if (pulseOnAllRings || ringIndex == 1) {
+				fill(LedColor(255, 255, 255, 255), ring_2_start + amp2, white2);
+				fill(LedColor(255, 255, 255, 255), ring_2_end - amp2 - white2, white2);
+				fill(LedColor(255, 255, 255, 255), ring_2_middle + amp2, white2);
+				fill(LedColor(255, 255, 255, 255), ring_2_middle - amp2 - white2, white2);
+			}
+
+			if (pulseOnAllRings || ringIndex == 2) {
+				fill(LedColor(255, 255, 255, 255), ring_3_midpoint_L + amp3, white3);
+				fill(LedColor(255, 255, 255, 255), ring_3_midpoint_L - amp3 - white3, white3);
+				fill(LedColor(255, 255, 255, 255), ring_3_midpoint_R + amp3, white3);
+				fill(LedColor(255, 255, 255, 255), ring_3_midpoint_R - amp3 - white3, white3);
+			}
 		}
 	}
 };
@@ -682,7 +769,7 @@ public:
 	void update(int frame, float intensity) override {
 		float dTheta = 0.5;
 		theta = fmod(theta + dTheta, 360.0);
-		float angle = fmod(hueShiftAngle * (elapsedBeats % (360/30)), 360.0) + theta;
+		float angle = fmod(hueShiftAngle * (elapsedBeats % (360 / 30)), 360.0) + theta;
 		uint16_t phase = uint16_t(fmod(angle, 360.) / 360.0 * 65535) % 65535;
 
 		for (int i = 0; i < LED_COUNT_TOTAL; i++) {
@@ -742,27 +829,29 @@ public:
 	AccentShader* activeAccentShader = nullptr;
 	ShaderManager(Adafruit_NeoPixel& ledStrip, LedColor(&colors)[LED_COUNT_TOTAL]) : strip(ledStrip), ledColors(colors) {
 		std::vector<Shader*> shaderList = {
+			// good ones
+			new Inferno(ledColors),
+			new RedSineWave(ledColors),
+			new AquaColors(ledColors),
+			new BluePurple(ledColors),
 			new LoopyRainbow(ledColors),
 			new LoopyRainbow2(ledColors),
+			// shitty ones
 			new WhiteOverRainbow(ledColors),
-			new Inferno(ledColors),
 			new Inferno2(ledColors),
-			new RedSineWave(ledColors),
 			new RedSquareWave(ledColors),
-			new AquaColors(ledColors),
-			new BluePurple(ledColors)
 			// Add more shaders here
 		};
 
 		std::vector<AccentShader*> accentShaderList = {
 			new NoAccent(ledColors),
 			new WhitePeaks(ledColors),
+			new LightFanIn(ledColors),
 			new WhitePeaksBeatsOnly(ledColors),
 			new PulsedStrobeOverlay(ledColors),
 			new Strobe(ledColors),
 			new BeatHueShift(ledColors),
 			new BeatHueShift2(ledColors),
-			new LightFanIn(ledColors)
 			// Add more shaders here
 		};
 

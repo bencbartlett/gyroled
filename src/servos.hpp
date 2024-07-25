@@ -6,12 +6,14 @@
 #define SERVO_3_PIN     26
 #define SERVO_UPDATE_HZ 50
 
+#define SERVO_DEBUG_MODE false
+
 class ServoManager {
 private:
 	Servo servo1;
 	Servo servo2;
 	Servo servo3;
-	float servo_master_speed = 0.25; // Can range from 0 to 1
+	float servo_master_speed = 0.3; // Can range from 0 to 1
 	float servo1_speed = 0.6; // Can range from -1 to 1
 	float servo2_speed = 0.8;
 	float servo3_speed = 1.0;
@@ -19,7 +21,9 @@ private:
 	unsigned long lastServoUpdate = 0;
 public:
 	ServoManager() {
-		
+		#if SERVO_DEBUG_MODE
+		servo_master_speed = 0.0;
+		#endif
 	}
 
 	void setupServos() {
