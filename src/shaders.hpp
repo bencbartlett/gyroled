@@ -452,33 +452,19 @@ public:
 };
 
 
-class Cuttlefish : public Shader {
+class Bisexual : public Shader {
 private:
-	int periodsPerRing = 3;
-	int p = 4;
-	float speed = 0.01;
+	float speed = 0.1;
 
-	int startHue = 190;
+	int startHue = 200;
 	int endHue = 340;
 
-	// Define hue ranges for each ring. Values are in degrees (0-360) on the color wheel, then converted to 0-65535.
-	struct HueRange {
-		uint16_t startHue;
-		uint16_t endHue;
-	};
-
-	HueRange ringHueRanges[3] = {
-		{170, 200},  // Ring 1: Blues to Purples (170 is light blue, 270 is violet)
-		{190, 220},  // Ring 2: Cyan Colors (180 is cyan, 210 is deeper cyan)
-		{150, 180}   // Ring 3: Turquoise Colors (150 is soft turquoise, 180 is cyan)
-	};
-
 public:
-	Cuttlefish(LedColor(&colors)[LED_COUNT_TOTAL]) : Shader(colors, "Cuttlefish") {}
+	Bisexual(LedColor(&colors)[LED_COUNT_TOTAL]) : Shader(colors, "Bisexual") {}
 	void update(int frame) override {
 		for (int i = 0; i < LED_COUNT_TOTAL; i++) {
 			float x = getXpos(i);
-			float t = pow(sin(PI / 2 * x), 2);
+			float t = pow(sin(PI / 2 * x - speed * float(frame)), 2);
 			ledColors[i] = LedColor::hueInterpolate(t, startHue, endHue);
 		}
 	}
@@ -839,6 +825,7 @@ public:
 			new BluePurple(ledColors),
 			new LoopyRainbow(ledColors),
 			new LoopyRainbow2(ledColors),
+			new Bisexual(ledColors),
 			// shitty ones
 			new WhiteOverRainbow(ledColors),
 			new Inferno2(ledColors),
