@@ -4,7 +4,7 @@ from scipy.spatial.transform import Rotation as R
 
 USE_XYXXYX = False
 USE_SOLVER = True
-CLIP_RPM = True
+CLIP_RPM = False
 MAX_RPM = 60
 
 NUM_RINGS = 6  # Total number of rings
@@ -40,6 +40,7 @@ rings = []
 
 # Initialize angles for each ring relative to the ring outside of it
 angles = [0.0 for _ in range(NUM_RINGS)]
+dthetas = [0.0 for _ in range(NUM_RINGS)]
 
 # Define initial axis and up vectors for each ring
 initial_axes = []
@@ -166,77 +167,58 @@ while True:
 
     # Store previous angles for angular velocity calculations
     previous_angles = angles.copy()
+    previous_dthetas = dthetas.copy()
 
     if USE_SOLVER:
         if NUM_RINGS == 6:
-            dthetas = []
             for i in range(3):
                 omega = angular_velocities[i]
-                dtheta = omega * dt * time_scale
-                dthetas.append(dtheta)
-                angles[i] += dtheta  # Update the relative angle
+                dthetas[i] = omega * dt * time_scale
+                angles[i] += dthetas[i]  # Update the relative angle
+                angles[i] = angles[i] % (2 * np.pi)
 
             z_rot_speed = 0 * 2 * np.pi / 60
             z_rot = R.from_rotvec([0, 0, z_rot_speed * t])
 
-            inv_rot = R.from_euler("xyx", -1*np.array(angles[0:3]))
-            inverse_angles = (inv_rot * z_rot).as_euler("yxy")[::-1]
+            inv_rot = R.from_euler("xyx", np.array(angles[0:3])).inv()
+            inverse_angles = (inv_rot * z_rot).as_euler("yxy")
 
             # If the angle jumps from -180 to 180, this is acutally a small change in the negative 
             # direction rather than a large change in the positive direction. Let's adjust the computed
             # dtheta values to reflect this.
 
+            use_last_dtheta = False
             for i in range(3, 6):
-                next_angle = inverse_angles[i - 3]
-                if np.abs(next_angle - previous_angles[i]) > np.pi * .5:
-                    next_angle = min([next_angle, next_angle + 2 * np.pi, next_angle + np.pi, next_angle - np.pi, next_angle - 2 * np.pi], key=lambda x: abs(x - previous_angles[i]))
-                    print(f"Adjusting angle from {inverse_angles[i - 3]} to {next_angle}")
+                dthetas[i] = inverse_angles[i - 3] - previous_angles[i]
+                dthetas[i] = (dthetas[i] + np.pi) % (2 * np.pi) - np.pi
+                dtheta_rpm = dthetas[i] * (60 / (2 * np.pi)) / (dt * time_scale)
+                if abs(dtheta_rpm) > 10 * MAX_RPM: 
+                    use_last_dtheta = True
 
-                dtheta = next_angle - previous_angles[i]
+            for i in range(3, 6):
+                # Compute minimal angle difference considering wrapping
+                if False: # use_last_dtheta:
+                    dthetas[i] = previous_dthetas[i]
 
-                # if np.abs(dtheta) > np.pi * .1:
-                #     new_dtheta = min([dtheta, dtheta + 2 * np.pi, dtheta + np.pi, dtheta - np.pi, dtheta - 2 * np.pi], key=lambda x: (abs(x), x))
-                #     print(f"Adjusting dtheta from {dtheta} to {new_dtheta}")
+                dtheta_rpm = dthetas[i] * (60 / (2 * np.pi)) / (dt * time_scale)
 
-                dtheta_rpm = dtheta * (60 / (2 * np.pi)) / (dt * time_scale)
+                if abs(dtheta_rpm) > MAX_RPM:
+                    print(f"Exceeded max RPM: {dtheta_rpm}")
 
                 if CLIP_RPM and abs(dtheta_rpm) > MAX_RPM:
-                    print(f"Exceeded max RPM: {dtheta_rpm}")
+                    print(f"Clipping to max RPM! {dtheta_rpm}")
                     dtheta_rpm_clipped = np.clip(dtheta_rpm, -MAX_RPM, MAX_RPM)
                     dtheta_clipped = dtheta_rpm_clipped * ((2 * np.pi) / 60) * (dt * time_scale)
-                    dtheta = dtheta_clipped
+                    dthetas[i] = dtheta_clipped
 
-                new_angle = angles[i] + dtheta
-
-                # delta_angle = angles[i] - previous_angles[i]
-                angular_velocities[i] = dtheta / (dt * time_scale)
+                new_angle = angles[i] + dthetas[i]
+                angular_velocities[i] = dthetas[i] / (dt * time_scale)
                 omega_rpm[i] = angular_velocities[i] * 60 / (2 * np.pi)
                 sliders[i].value = omega_rpm[i]
                 rpm_labels[i].text = f'{omega_rpm[i]:.2f} RPM'
-                
+
                 angles[i] = new_angle
-                
 
-        # elif NUM_RINGS == 4:
-
-        #     for i in range(1):
-        #         omega = angular_velocities[i]
-        #         dtheta = omega * dt * time_scale
-        #         angles[i] += dtheta  # Update the relative angle
-
-        #     # inverse_angles = R.from_euler("xyz", [-angles[0], -angles[1], 0]).as_euler("xyz")
-        #     inv_rot = R.from_euler("x", angles[0]).inv()
-        #     inverse_angles = inv_rot.as_euler("yxy")
-        #     for i in range(1, 4):
-        #         angles[i] = inverse_angles[i - 2]
-
-        #     # Update angular velocities for rings 3, 4
-        #     for i in range(1, 4):
-        #         delta_angle = angles[i] - previous_angles[i]
-        #         angular_velocities[i] = delta_angle / (dt * time_scale)
-        #         omega_rpm[i] = angular_velocities[i] * 60 / (2 * np.pi)
-        #         sliders[i].value = omega_rpm[i]
-        #         rpm_labels[i].text = f'{omega_rpm[i]:.2f} RPM'
 
         else:
             raise ValueError("Unsupported number of rings")
@@ -268,3 +250,5 @@ while True:
         # up_arrows[i].pos = vector(0, 0, 0) + vector(*rotated_axis) * radii[i]
         up_arrows[i].axis = vector(*rotated_up) * radii[i-1]
         down_arrows[i].axis = vector(*rotated_up) * -1 * radii[i-1]
+
+    print(f"θ1 {angles[0]:.2f} θ2 {angles[1]:.2f} θ3 {angles[2]:.2f} θ4 {angles[3]:.2f} θ5 {angles[4]:.2f} θ6 {angles[5]:.2f}  |  ω1 {omega_rpm[0]:.2f} ω2 {omega_rpm[1]:.2f} ω3 {omega_rpm[2]:.2f} ω4 {omega_rpm[3]:.2f} ω5 {omega_rpm[4]:.2f} ω6 {omega_rpm[5]:.2f}")
