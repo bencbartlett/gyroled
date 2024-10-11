@@ -2,6 +2,8 @@ import numpy as np
 from vpython import *
 from scipy.spatial.transform import Rotation as R
 
+PAUSED = True  # Flag to control simulation state
+
 USE_XYXXYX = False
 USE_SOLVER = True
 CLIP_RPM = False
@@ -22,6 +24,7 @@ radii = [r * 0.0254 * .5 for r in radii]  # Convert inches to meters
 
 # Initialize angular velocities in RPM
 omega_rpm = [30] * NUM_RINGS  # initial values in RPM
+omega_rpm = [30, 30, 30, 0, 0, 0]
 
 # Convert angular velocities to radians per second
 angular_velocities = [omega * 2 * np.pi / 60 for omega in omega_rpm]
@@ -116,6 +119,18 @@ def update_omega(index, value):
 
     rpm_labels[index].text = f'{omega_rpm[index]:.2f} RPM'
 
+# Create pause button
+def toggle_simulation(b):
+    global PAUSED
+    PAUSED = not PAUSED
+    if PAUSED:
+        b.text = "Pause"
+    else:
+        b.text = "Play"
+
+pause_button = button(text="Pause", bind=toggle_simulation)
+scene.append_to_caption('\n\n')
+
 # Create sliders and associated text labels
 sliders = []
 rpm_labels = []
@@ -157,11 +172,21 @@ for i in range(NUM_RINGS):
     scene.append_to_caption('\n')  # New line after each slider
 
 # Simulation parameters
-dt = 0.005  # Time step in seconds
+dt = 0.001  # Time step in seconds
+
+
+
+
+# TODO: rather than computing angles at each step to cancel out the angles applied by the first three rings, let's instead calculate the current orientation of the center ring and then compute the operation needed to bring the center ring toward the desired heading.
+
+
+
 
 # Animation loop
 t = 0
 while True:
+    if PAUSED:
+        continue
     rate(100)  # Limit the simulation to 100 iterations per second
     t += dt * time_scale  # Adjust time increment by time scale
 
@@ -202,8 +227,8 @@ while True:
 
                 dtheta_rpm = dthetas[i] * (60 / (2 * np.pi)) / (dt * time_scale)
 
-                if abs(dtheta_rpm) > MAX_RPM:
-                    print(f"Exceeded max RPM: {dtheta_rpm}")
+                # if abs(dtheta_rpm) > MAX_RPM:
+                #     print(f"Exceeded max RPM: {dtheta_rpm}")
 
                 if CLIP_RPM and abs(dtheta_rpm) > MAX_RPM:
                     print(f"Clipping to max RPM! {dtheta_rpm}")
@@ -251,4 +276,10 @@ while True:
         up_arrows[i].axis = vector(*rotated_up) * radii[i-1]
         down_arrows[i].axis = vector(*rotated_up) * -1 * radii[i-1]
 
-    print(f"θ1 {angles[0]:.2f} θ2 {angles[1]:.2f} θ3 {angles[2]:.2f} θ4 {angles[3]:.2f} θ5 {angles[4]:.2f} θ6 {angles[5]:.2f}  |  ω1 {omega_rpm[0]:.2f} ω2 {omega_rpm[1]:.2f} ω3 {omega_rpm[2]:.2f} ω4 {omega_rpm[3]:.2f} ω5 {omega_rpm[4]:.2f} ω6 {omega_rpm[5]:.2f}")
+    def colorize(value):
+        if abs(value) > MAX_RPM:
+            return f"\033[91m{value:.2f}\033[0m"  # Red color
+        return f"{value:.2f}"
+
+    print(f"θ1 {colorize(angles[0])} θ2 {colorize(angles[1])} θ3 {colorize(angles[2])} θ4 {colorize(angles[3])} θ5 {colorize(angles[4])} θ6 {colorize(angles[5])}  |  ω1 {colorize(omega_rpm[0])} ω2 {colorize(omega_rpm[1])} ω3 {colorize(omega_rpm[2])} ω4 {colorize(omega_rpm[3])} ω5 {colorize(omega_rpm[4])} ω6 {colorize(omega_rpm[5])}")
+    # print(f"θ1 {angles[0]:.2f} θ2 {angles[1]:.2f} θ3 {angles[2]:.2f} θ4 {angles[3]:.2f} θ5 {angles[4]:.2f} θ6 {angles[5]:.2f}  |  ω1 {omega_rpm[0]:.2f} ω2 {omega_rpm[1]:.2f} ω3 {omega_rpm[2]:.2f} ω4 {omega_rpm[3]:.2f} ω5 {omega_rpm[4]:.2f} ω6 {omega_rpm[5]:.2f}")
