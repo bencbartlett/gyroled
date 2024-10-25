@@ -812,10 +812,15 @@ private:
 public:
 	bool hasPhoneEverConnected = false;
 
+	bool useAnimation = false;
+	bool animationHasBeenChanged = false;
+
 	std::map<String, Shader*> shaders;
 	std::map<String, AccentShader*> accentShaders;
+
 	Shader* activeShader = nullptr;
 	AccentShader* activeAccentShader = nullptr;
+
 	ShaderManager(Adafruit_NeoPixel& ledStrip, LedColor(&colors)[LED_COUNT_TOTAL]) : strip(ledStrip), ledColors(colors) {
 		std::vector<Shader*> shaderList = {
 			// good ones
@@ -855,6 +860,7 @@ public:
 
 		if (!shaderList.empty()) {
 			activeShader = shaderList[0]; // Set the first shader as the default active shader
+			animationHasBeenChanged = true;
 		}
 
 		if (!accentShaderList.empty()) {
@@ -875,6 +881,7 @@ public:
 		auto it = shaders.find(shaderName);
 		if (it != shaders.end()) {
 			activeShader = it->second;
+			animationHasBeenChanged = true;
 			// lastShaderChangeMs = millis();
 		}
 		else {
@@ -886,6 +893,7 @@ public:
 		auto it = accentShaders.find(shaderName);
 		if (it != accentShaders.end()) {
 			activeAccentShader = it->second;
+			animationHasBeenChanged = true;
 		}
 		else {
 			Serial.println("Accent Shader not found");
@@ -893,6 +901,10 @@ public:
 	}
 
 	void run(int frame, float intensity) {
+		if (!useAnimation && !animationHasBeenChanged) {
+			return;
+		}
+
 		// If phone was never connected let's cycle through the good shaders
 		int tenMins = 30 * 60 * 10;
 		if (!hasPhoneEverConnected && frame % tenMins == tenMins - 1) {
@@ -917,6 +929,8 @@ public:
 			strip.setPixelColor(i, ledColors[i].pack());
 		}
 		strip.show();
+
+		animationHasBeenChanged = false;
 	}
 
 };

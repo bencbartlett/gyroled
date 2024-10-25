@@ -45,6 +45,9 @@ class MyCallbacks : public BLECharacteristicCallbacks {
 			}
 			sendStringToPhone("shaders", shaderNames);  // Send the list when commanded
 		} 
+		else if (value == "getIsAnimationActive") {
+			sendStringToPhone("isAnimationActive", shaderManager.useAnimation ? "true" : "false");
+		}
 		else if (value == "getActiveShader") {
 			sendStringToPhone("activeShader", shaderManager.activeShader->getName());
 		}
@@ -64,8 +67,13 @@ class MyCallbacks : public BLECharacteristicCallbacks {
 		else if (value == "getBrightness") {
 			sendStringToPhone("brightness", String(brightness));
 		}
+		else if (value == "activateAnimation") {
+			shaderManager.useAnimation = true;
+		}
+		else if (value == "deactivateAnimation") {
+			shaderManager.useAnimation = false;
+		}
 		else {
-
 			size_t pos = value.find(':');
 			std::string cmd = value.substr(0, pos);
 			std::string arg = value.substr(pos + 1);

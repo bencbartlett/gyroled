@@ -67,6 +67,16 @@ public:
 	}
 
 	void runServos() {
+		if (millis() < 2000) {
+			// Turn off servos for the first 2s
+			updateServo = false;
+		}
+		else if (millis() - lastServoUpdate > 1000 / SERVO_UPDATE_HZ) {
+			// Simple non-blocking delay for servo update
+			lastServoUpdate = millis();
+			updateServo = true;
+		}
+
 		if (servo_master_speed < 0.1) {
 			// Turn servos on after 30s in case I forget to turn off servo debug mode
 			if (!hasPhoneEverConnected && millis() > 30000) {
@@ -82,11 +92,6 @@ public:
 			updateServo = false; // Prevent updating the servo in the next loop iteration
 		}
 
-		// Simple non-blocking delay for servo update
-		if (millis() - lastServoUpdate > 1000 / SERVO_UPDATE_HZ) {
-			lastServoUpdate = millis();
-			updateServo = true;
-		}
 	}
 
 };
