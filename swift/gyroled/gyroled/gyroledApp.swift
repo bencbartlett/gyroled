@@ -108,6 +108,7 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
                 requestServoSpeeds(peripheral: peripheral)
                 requestActiveAccentShader(peripheral: peripheral)
                 requestBrightness(peripheral: peripheral)
+                requestIsAnimationActive(peripheral: peripheral)
             }
         }
     }
@@ -155,6 +156,15 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
                 DispatchQueue.main.async {
                     self.viewModel.activeAccentShader = activeAccentShaderName
                 }
+            } else if receivedString.starts(with: "animationState:") {
+                let stateString = receivedString.dropFirst("animationState:".count)
+                if let state = Bool(String(stateString)) {
+                    DispatchQueue.main.async {
+                        self.viewModel.isAnimationActive = state
+                    }
+                } else {
+                    print("Failed to parse animation state")
+                }
             } else if receivedString.starts(with: "servoSpeeds:") {
                 let speeds = receivedString
                     .dropFirst("servoSpeeds:".count)
@@ -197,6 +207,18 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
 
     func sendServoSpeed(servo: Int, speed: Double) {
         sendCommand(cmd: "setServoSpeed:\(servo);\(speed)")
+    }
+    
+    func requestIsAnimationActive(peripheral: CBPeripheral) {
+        sendCommand(cmd: "getIsAnimationActive")
+    }
+    
+    func activateAnimation() {
+        sendCommand(cmd: "activateAnimation")
+    }
+
+    func deactivateAnimation() {
+        sendCommand(cmd: "deactivateAnimation")
     }
     
     func setActiveShader(shader: String) {

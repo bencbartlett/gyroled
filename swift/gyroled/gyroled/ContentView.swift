@@ -10,6 +10,7 @@ import SwiftUI
 class TotemViewModel: ObservableObject {
     @Published var shaderNames: [String] = []
     @Published var accentShaderNames: [String] = []
+    @Published var isAnimationActive: Bool = false
     @Published var activeShader: String = "Loopy Rainbow"
     @Published var activeAccentShader: String = "(No Accent)"
     @Published var brightness: Int = 255
@@ -30,6 +31,14 @@ struct ContentView: View {
                 
                 // Servo control section
                 Section(header: Text("Hardware Controls")) {
+                    Toggle("Enable Animation", isOn: $viewModel.isAnimationActive)
+                        .onChange(of: viewModel.isAnimationActive) {
+                            if viewModel.isAnimationActive {
+                                bluetoothManager.activateAnimation()
+                            } else {
+                                bluetoothManager.deactivateAnimation()
+                            }
+                        }
                     HStack {
                         Text("Brightness    ")
                         Slider(value: Binding(
@@ -76,19 +85,19 @@ struct ContentView: View {
                 }
 
                 // Beat drop section
-                Section(header: Text("Daaaanger zone!")) {
-                    Button(action: {
-                        bluetoothManager.sendCommand(cmd: "beatDrop")
-                    }) {
-                        Text("🚨BEAT DROP🚨")
-                            .fontWeight(.bold)
-                            .foregroundColor(.white)
-                            .padding()
-                            .frame(maxWidth: .infinity)
-                            .background(Color.red)
-                            .cornerRadius(8)
-                    }
-                }
+//                Section(header: Text("Daaaanger zone!")) {
+//                    Button(action: {
+//                        bluetoothManager.sendCommand(cmd: "beatDrop")
+//                    }) {
+//                        Text("🚨BEAT DROP🚨")
+//                            .fontWeight(.bold)
+//                            .foregroundColor(.white)
+//                            .padding()
+//                            .frame(maxWidth: .infinity)
+//                            .background(Color.red)
+//                            .cornerRadius(8)
+//                    }
+//                }
                 
                 Button(action: {
                     bluetoothManager.reconnect()
@@ -101,8 +110,6 @@ struct ContentView: View {
             }
             .navigationBarTitle("GyroLED Totem Controller", displayMode: .inline)
         }
-        
-        
         
     }
 
