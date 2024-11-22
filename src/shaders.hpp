@@ -670,6 +670,27 @@ public:
 	}
 };
 
+class PulseIntensity : public AccentShader {
+private:
+	float minBrightnessScale = 0.25;
+	float maxBrightnessScale = 1.0;
+	float animationTime = 300.0;
+public:
+	PulseIntensity(LedColor(&colors)[LED_COUNT_TOTAL]) : AccentShader(colors, "Pulsed Intensity") {}
+	void update(int frame, float intensity) override {
+
+		float prog = std::max(std::min(float(float(millis() - lastBeatTimestamp) / animationTime), float(0)), float(1));
+		float intensity = maxBrightnessScale * prog + minBrightnessScale * (1-prog);
+
+		for (int i = 0; i < LED_COUNT_TOTAL; i++) {
+			ledColors[i].r = uint8_t(intensity * ledColors[i].r);
+			ledColors[i].g = uint8_t(intensity * ledColors[i].g);
+			ledColors[i].b = uint8_t(intensity * ledColors[i].b);
+			ledColors[i].w = uint8_t(intensity * ledColors[i].w);
+		}
+	}
+};
+
 class Strobe : public AccentShader {
 private:
 	float brightnessScale = 0.8;
@@ -812,7 +833,7 @@ private:
 public:
 	bool hasPhoneEverConnected = false;
 
-	bool useAnimation = false;
+	bool useAnimation = true;
 	bool animationHasBeenChanged = false;
 
 	std::map<String, Shader*> shaders;
@@ -842,6 +863,7 @@ public:
 			new NoAccent(ledColors),
 			new WhitePeaks(ledColors),
 			new LightFanIn(ledColors),
+			new PulseIntensity(ledColors),
 			new WhitePeaksBeatsOnly(ledColors),
 			new PulsedStrobeOverlay(ledColors),
 			new Strobe(ledColors),

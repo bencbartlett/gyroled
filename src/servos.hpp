@@ -13,9 +13,9 @@ private:
 	Servo servo1;
 	Servo servo2;
 	Servo servo3;
-	float servo_master_speed = 0.3; // Can range from 0 to 1
-	float servo1_speed = 0.6; // Can range from -1 to 1
-	float servo2_speed = 0.8;
+	float servo_master_speed = 0.5; // Can range from 0 to 1
+	float servo1_speed = 0.7; // Can range from -1 to 1
+	float servo2_speed = 0.85;
 	float servo3_speed = 1.0;
 	bool updateServo = true; // Flag to control servo update
 	unsigned long lastServoUpdate = 0;
@@ -67,7 +67,7 @@ public:
 	}
 
 	void runServos() {
-		if (millis() < 2000) {
+		if (millis() < 1000) {
 			// Turn off servos for the first 2s
 			updateServo = false;
 		}
