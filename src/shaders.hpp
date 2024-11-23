@@ -256,9 +256,9 @@ private:
 	};
 
 	HueRange ringHueRanges[3] = {
-		{240, 270},  // Ring 1: Blue to Purple (240 is blue, 270 is violet)
-		{270, 340},  // Ring 2: Purple to Magenta (270 is violet, 300 is magenta)
-		{0, 40}    // Ring 3: Magenta to Red to Yellow (300 is magenta, 60 is yellow)
+		{250, 280},  // Ring 1: Blue to Purple (240 is blue, 270 is violet)
+		{290, 359},  // Ring 2: Purple to Magenta (270 is violet, 300 is magenta)
+		{10, 60}    // Ring 3: Magenta to Red to Yellow (300 is magenta, 60 is yellow)
 	};
 
 public:
@@ -281,7 +281,7 @@ public:
 			2.0 * PI * (
 				(float(periods) * float(ledIndex) / float(totalLeds))
 				+ (float(frame) / cycleTime)
-				)
+			)
 		);
 		uint16_t hue = map(int(sinVal * 65536) % 65536, 0, 65536, hueRange.startHue, hueRange.endHue);
 		return LedColor(Adafruit_NeoPixel::gamma32(Adafruit_NeoPixel::ColorHSV(hue * 182)));  // Multiply by 182 to convert 0-360 to 0-65535
@@ -766,12 +766,12 @@ public:
 	}
 };
 
-class BeatHueShift2 : public AccentShader {
+class BeatHueShiftQuantized : public AccentShader {
 private:
-	float hueShiftAngle = 50.0;
+	float hueShiftAngle = 121.0;
 	float theta = 0.0;
 public:
-	BeatHueShift2(LedColor(&colors)[LED_COUNT_TOTAL]) : AccentShader(colors, "Beat Hue Shift 2") {}
+	BeatHueShiftQuantized(LedColor(&colors)[LED_COUNT_TOTAL]) : AccentShader(colors, "Beat Hue Shift Quantized") {}
 
 	void update(int frame, float intensity) override {
 		float dTheta = 0.5;
@@ -833,7 +833,7 @@ private:
 public:
 	bool hasPhoneEverConnected = false;
 
-	bool useAnimation = true;
+	bool useAnimation = false;
 	bool animationHasBeenChanged = false;
 
 	std::map<String, Shader*> shaders;
@@ -868,7 +868,7 @@ public:
 			new PulsedStrobeOverlay(ledColors),
 			new Strobe(ledColors),
 			new BeatHueShift(ledColors),
-			new BeatHueShift2(ledColors),
+			new BeatHueShiftQuantized(ledColors),
 			// Add more shaders here
 		};
 

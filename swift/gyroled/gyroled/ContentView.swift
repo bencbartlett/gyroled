@@ -10,8 +10,8 @@ import SwiftUI
 class TotemViewModel: ObservableObject {
     @Published var shaderNames: [String] = []
     @Published var accentShaderNames: [String] = []
-    @Published var isAnimationActive: Bool = true
-    @Published var activeShader: String = "Loopy Rainbow"
+    @Published var isAnimationActive: Bool = false
+    @Published var activeShader: String = "Inferno"
     @Published var activeAccentShader: String = "(No Accent)"
     @Published var brightness: Int = 255
     @Published var servo1Speed: Double = 0.7
