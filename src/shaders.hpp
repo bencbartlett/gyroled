@@ -258,7 +258,7 @@ private:
 	HueRange ringHueRanges[3] = {
 		{250, 280},  // Ring 1: Blue to Purple (240 is blue, 270 is violet)
 		{290, 359},  // Ring 2: Purple to Magenta (270 is violet, 300 is magenta)
-		{10, 60}    // Ring 3: Magenta to Red to Yellow (300 is magenta, 60 is yellow)
+		{0, 40}    // Ring 3: Magenta to Red to Yellow (300 is magenta, 60 is yellow)
 	};
 
 public:
@@ -680,13 +680,13 @@ public:
 	void update(int frame, float intensity) override {
 
 		float prog = std::max(std::min(float(float(millis() - lastBeatTimestamp) / animationTime), float(0)), float(1));
-		float intensity = maxBrightnessScale * prog + minBrightnessScale * (1-prog);
+		float brightness = maxBrightnessScale * prog + minBrightnessScale * (1-prog);
 
 		for (int i = 0; i < LED_COUNT_TOTAL; i++) {
-			ledColors[i].r = uint8_t(intensity * ledColors[i].r);
-			ledColors[i].g = uint8_t(intensity * ledColors[i].g);
+			ledColors[i].r = uint8_t(brightness * ledColors[i].r);
+			ledColors[i].g = uint8_t(brightness * ledColors[i].g);
 			ledColors[i].b = uint8_t(intensity * ledColors[i].b);
-			ledColors[i].w = uint8_t(intensity * ledColors[i].w);
+			ledColors[i].w = uint8_t(brightness * ledColors[i].w);
 		}
 	}
 };

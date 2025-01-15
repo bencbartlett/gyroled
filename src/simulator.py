@@ -18,13 +18,14 @@ scene = canvas(title='<h1>Totem v2 Sim - Euler Angle Solver</h1>',
 scene.forward = vector(-1, -1, -1)
 scene.caption = '\n'  # Add space for sliders and controls
 
-radii = np.array([28, 24, 20, 16, 12, 8, 32])  # Radii of the rings in inches
-ball_radius = 6 * 0.0254 * .5
+# radii = np.array([28, 24, 20, 16, 12, 8, 32])  # Radii of the rings in inches
+radii = np.array([36, 32, 28, 24, 20, 10, 40])  # Radii of the rings in inches
+ball_radius = 5 * 0.0254
 radii = [r * 0.0254 * .5 for r in radii]  # Convert inches to meters
 
 # Initialize angular velocities in RPM
 omega_rpm = [30] * NUM_RINGS  # initial values in RPM
-omega_rpm = [30, 30, 30, 0, 0, 0]
+omega_rpm = [30, 35, 40, 0, 0, 0]
 
 # Convert angular velocities to radians per second
 angular_velocities = [omega * 2 * np.pi / 60 for omega in omega_rpm]
@@ -163,7 +164,7 @@ for i in range(NUM_RINGS):
     def update(evt, i=i):
         update_omega(i, evt.value)
 
-    s = slider(bind=update, min=-180, max=180, value=omega_rpm[i], length=200)
+    s = slider(bind=update, min=-60, max=60, value=omega_rpm[i], length=200)
     sliders.append(s)
 
     rpm_label = wtext(text=f'{omega_rpm[i]:.2f} RPM')
@@ -172,7 +173,7 @@ for i in range(NUM_RINGS):
     scene.append_to_caption('\n')  # New line after each slider
 
 # Simulation parameters
-dt = 0.001  # Time step in seconds
+dt = 0.005  # Time step in seconds
 
 
 
@@ -280,6 +281,8 @@ while True:
         if abs(value) > MAX_RPM:
             return f"\033[91m{value:.2f}\033[0m"  # Red color
         return f"{value:.2f}"
+    
+    print([float(angle) for angle in angles])
 
-    print(f"θ1 {colorize(angles[0])} θ2 {colorize(angles[1])} θ3 {colorize(angles[2])} θ4 {colorize(angles[3])} θ5 {colorize(angles[4])} θ6 {colorize(angles[5])}  |  ω1 {colorize(omega_rpm[0])} ω2 {colorize(omega_rpm[1])} ω3 {colorize(omega_rpm[2])} ω4 {colorize(omega_rpm[3])} ω5 {colorize(omega_rpm[4])} ω6 {colorize(omega_rpm[5])}")
+    # print(f"θ1 {colorize(angles[0])} θ2 {colorize(angles[1])} θ3 {colorize(angles[2])} θ4 {colorize(angles[3])} θ5 {colorize(angles[4])} θ6 {colorize(angles[5])}  |  ω1 {colorize(omega_rpm[0])} ω2 {colorize(omega_rpm[1])} ω3 {colorize(omega_rpm[2])} ω4 {colorize(omega_rpm[3])} ω5 {colorize(omega_rpm[4])} ω6 {colorize(omega_rpm[5])}")
     # print(f"θ1 {angles[0]:.2f} θ2 {angles[1]:.2f} θ3 {angles[2]:.2f} θ4 {angles[3]:.2f} θ5 {angles[4]:.2f} θ6 {angles[5]:.2f}  |  ω1 {omega_rpm[0]:.2f} ω2 {omega_rpm[1]:.2f} ω3 {omega_rpm[2]:.2f} ω4 {omega_rpm[3]:.2f} ω5 {omega_rpm[4]:.2f} ω6 {omega_rpm[5]:.2f}")
