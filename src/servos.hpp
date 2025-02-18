@@ -1,5 +1,11 @@
 #include <Arduino.h>
-#include <ESP32Servo.h>
+#include <LSS.h>
+
+// ID set to default LSS ID = 0
+#define LSS_ID		(0)  // This is 0 for all servos since there is only one servo per ring
+#define LSS_BAUD	(LSS_DefaultBaud)
+// Choose the proper serial port for your platform
+#define LSS_SERIAL	(Serial)	// Uses default tx and rx pins
 
 #define SERVO_1_PIN     1
 #define SERVO_2_PIN     2
@@ -8,6 +14,40 @@
 
 #define SERVO_DEBUG_MODE false
 
+/**
+ * Run by slave controllers on each local ring to drive that ring's servo.
+ */
+class ServoController {
+private:
+	LSS servo = LSS(LSS_ID);
+
+	void setupServo() {
+		// Initialize the LSS bus
+		LSS::initBus(LSS_SERIAL, LSS_BAUD);
+		// Wait for the LSS to boot
+		delay(2000);
+	}
+
+	void runServo() {
+		// Placeholder for now
+		int32_t pos = servo.getPosition();
+		uint8_t rpm = servo.getSpeedRPM();
+		uint16_t current = servo.getCurrent();
+		uint16_t voltage = servo.getVoltage();
+		uint16_t temp = servo.getTemperature();
+
+		int32_t targetPos = pos + 100; // 100 * 1/10deg per frame;
+		servo.wheel(100);
+
+		Serial.printf("Pos: %d, RPM: %d, Current: %d, Voltage: %d, Temp: %d\n", pos, rpm, current, voltage, temp);
+	}
+
+};
+
+
+/**
+ * Run by the master controller to remotely control the servos on each ring.
+ */
 class ServoManager {
 private:
 	Servo servo1;
