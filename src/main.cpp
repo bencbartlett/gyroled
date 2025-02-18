@@ -13,7 +13,7 @@
 #define PRINT_SUMMARY    		false
 #define OUTPUT_TO_VISUALIZER 	false
 
-#define LED_PIN         		32
+#define LED_PIN         		10
 #define LED_COUNT       	 	648
 
 int frame = 0;

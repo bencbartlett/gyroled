@@ -1,9 +1,9 @@
 #include <Arduino.h>
 #include <ESP32Servo.h>
 
-#define SERVO_1_PIN     14
-#define SERVO_2_PIN     27
-#define SERVO_3_PIN     26
+#define SERVO_1_PIN     1
+#define SERVO_2_PIN     2
+#define SERVO_3_PIN     3
 #define SERVO_UPDATE_HZ 50
 
 #define SERVO_DEBUG_MODE false
