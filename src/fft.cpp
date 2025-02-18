@@ -24,10 +24,14 @@
 #define NUM_GEQ_CHANNELS 	16 
 
 // ADC parameters
-#define USE_RAW_ADC_READ 	true	// Whether to use adc1_get_raw() (faster) or analogRead() (slower) for sampling
-#define ADC_CHANNEL 		ADC1_CHANNEL_7
-#define ADC_WIDTH 			ADC_WIDTH_BIT_12
-#define ADC_ATTEN 			ADC_ATTEN_DB_11
+#ifdef CONFIG_IDF_TARGET_ESP32
+  #define USE_RAW_ADC_READ 	true     // Whether to use adc1_get_raw() (faster) or analogRead() (slower) for sampling
+  #define ADC_CHANNEL 		ADC1_CHANNEL_7
+  #define ADC_WIDTH 		ADC_WIDTH_BIT_12
+  #define ADC_ATTEN 		ADC_ATTEN_DB_11
+#else
+  #define USE_RAW_ADC_READ false
+#endif
 
 // Alternate INMP441 sampling scheme
 #define USE_INMP441 		false	// Whether to use the INMP441 microphone or the default MAX4466
