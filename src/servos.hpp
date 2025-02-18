@@ -1,11 +1,13 @@
 #include <Arduino.h>
+#include <ESP32Servo.h>
 #include <LSS.h>
 
 // ID set to default LSS ID = 0
 #define LSS_ID		(0)  // This is 0 for all servos since there is only one servo per ring
 #define LSS_BAUD	(LSS_DefaultBaud)
 // Choose the proper serial port for your platform
-#define LSS_SERIAL	(Serial)	// Uses default tx and rx pins
+// #define LSS_SERIAL	(Serial)	
+#define LSS_SERIAL  (Serial1)  // Uses tx and rx UART pins
 
 #define SERVO_1_PIN     1
 #define SERVO_2_PIN     2

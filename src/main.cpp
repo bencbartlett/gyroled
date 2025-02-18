@@ -13,6 +13,9 @@
 #define PRINT_SUMMARY    		false
 #define OUTPUT_TO_VISUALIZER 	false
 
+#define RX_PIN 16
+#define TX_PIN 17
+
 #define LED_PIN         		10
 #define LED_COUNT       	 	648
 
@@ -40,7 +43,10 @@ void setup() {
 	Serial.begin(115200);
 	setupBluetooth();
 	#else
+	
 	Serial.begin(115200);
+	Serial1.begin(115200, SERIAL_8N1, RX_PIN, TX_PIN);
+
 
 	strip.begin();
 	strip.clear();
