@@ -4,10 +4,10 @@
 #include <cmath>
 
 // #define LED_COUNT        648
-#define LED_COUNT_RING_1 257
-#define LED_COUNT_RING_2 212
-#define LED_COUNT_RING_3 179
-#define LED_COUNT_TOTAL  648
+#define LED_COUNT_RING_1 100
+#define LED_COUNT_RING_2 20
+#define LED_COUNT_RING_3 10
+#define LED_COUNT_TOTAL  130
 
 const int ring_1_midpoint_L = (int)(LED_COUNT_RING_1 * 0.25);
 const int ring_1_midpoint_R = (int)(LED_COUNT_RING_1 * 0.75 + 1); // fudge factor
@@ -287,6 +287,30 @@ public:
 		return LedColor(Adafruit_NeoPixel::gamma32(Adafruit_NeoPixel::ColorHSV(hue * 182)));  // Multiply by 182 to convert 0-360 to 0-65535
 	}
 };
+
+class InfernoTest : public Shader {
+	private:
+		int cycleTime = 20;  // Determines how quickly the colors cycle
+		int periods = 4;
+	
+		// Define hue ranges for each ring. Values are in degrees (0-360) on the color wheel.
+		struct HueRange {
+			uint16_t startHue;
+			uint16_t endHue;
+		};
+	
+		HueRange ringHueRange = {250, 40};  // Ring 1: Blue to Purple (240 is blue, 270 is violet)
+	
+	public:
+		InfernoTest(LedColor(&colors)[LED_COUNT_TOTAL]) : Shader(colors, "InfernoTest") {}
+	
+		void update(int frame) override {
+			for (int i = 0; i < LED_COUNT_TOTAL; i++) {
+				float t = fmod((periods * float(i) / LED_COUNT_TOTAL + float(frame) / cycleTime), 1.0);
+				ledColors[i] = LedColor::hueInterpolate(t, ringHueRange.startHue, ringHueRange.endHue);
+			}
+		}
+	};
 
 class Inferno2 : public Shader {
 private:
@@ -833,7 +857,7 @@ private:
 public:
 	bool hasPhoneEverConnected = false;
 
-	bool useAnimation = false;
+	bool useAnimation = true;
 	bool animationHasBeenChanged = false;
 
 	std::map<String, Shader*> shaders;
@@ -845,6 +869,7 @@ public:
 	ShaderManager(Adafruit_NeoPixel& ledStrip, LedColor(&colors)[LED_COUNT_TOTAL]) : strip(ledStrip), ledColors(colors) {
 		std::vector<Shader*> shaderList = {
 			// good ones
+			new InfernoTest(ledColors),
 			new Inferno(ledColors),
 			new RedSineWave(ledColors),
 			new AquaColors(ledColors),

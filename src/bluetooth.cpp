@@ -176,6 +176,12 @@ void bluetoothTask(void* args) {
 
 void setupBluetooth() {
 	// Create a task that will handle initializing and running the BLE functionality
+	#if MASTER_CONTROLLER
+		int core = 1;  // async sampling gets run by core 0 so we put core 1 for less congestion (check if this actually helps)
+	#else
+		int core = CONFIG_ESP32_WIFI_TASK_PINNED_TO_CORE_0 ? 0 : 1;
+	#endif
+
 	TaskHandle_t bluetoothTaskHandle;
 	xTaskCreatePinnedToCore(
 		bluetoothTask,          // Task function
@@ -184,7 +190,7 @@ void setupBluetooth() {
 		NULL,                   // Task input parameter
 		1,                      // Priority of the task
 		&bluetoothTaskHandle,   // Task handle
-		1                       // Core number
+		core                    // Core number
 	);
 }
 

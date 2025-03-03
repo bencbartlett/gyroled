@@ -9,10 +9,10 @@
 // #define LSS_SERIAL	(Serial)	
 #define LSS_SERIAL  (Serial1)  // Uses tx and rx UART pins
 
-#define SERVO_1_PIN     1
-#define SERVO_2_PIN     2
-#define SERVO_3_PIN     3
-#define SERVO_UPDATE_HZ 50
+// #define SERVO_1_PIN     25
+// #define SERVO_2_PIN     26
+// #define SERVO_3_PIN     27
+// #define SERVO_UPDATE_HZ 50
 
 #define SERVO_DEBUG_MODE false
 
@@ -23,6 +23,7 @@ class ServoController {
 private:
 	LSS servo = LSS(LSS_ID);
 
+public:
 	void setupServo() {
 		// Initialize the LSS bus
 		LSS::initBus(LSS_SERIAL, LSS_BAUD);
@@ -39,7 +40,7 @@ private:
 		uint16_t temp = servo.getTemperature();
 
 		int32_t targetPos = pos + 100; // 100 * 1/10deg per frame;
-		servo.wheel(100);
+		servo.wheel(6000);
 
 		Serial.printf("Pos: %d, RPM: %d, Current: %d, Voltage: %d, Temp: %d\n", pos, rpm, current, voltage, temp);
 	}
@@ -71,17 +72,17 @@ public:
 	}
 
 	void setupServos() {
-		ESP32PWM::allocateTimer(0);
-		ESP32PWM::allocateTimer(1);
-		ESP32PWM::allocateTimer(2);
-		ESP32PWM::allocateTimer(3);
+		// ESP32PWM::allocateTimer(0);
+		// ESP32PWM::allocateTimer(1);
+		// ESP32PWM::allocateTimer(2);
+		// ESP32PWM::allocateTimer(3);
 
-		servo1.setPeriodHertz(SERVO_UPDATE_HZ);
-		servo2.setPeriodHertz(SERVO_UPDATE_HZ);
-		servo3.setPeriodHertz(SERVO_UPDATE_HZ);
-		servo1.attach(SERVO_1_PIN, 500, 2400);
-		servo2.attach(SERVO_2_PIN, 500, 2400);
-		servo3.attach(SERVO_3_PIN, 500, 2400);
+		// servo1.setPeriodHertz(SERVO_UPDATE_HZ);
+		// servo2.setPeriodHertz(SERVO_UPDATE_HZ);
+		// servo3.setPeriodHertz(SERVO_UPDATE_HZ);
+		// servo1.attach(SERVO_1_PIN, 500, 2400);
+		// servo2.attach(SERVO_2_PIN, 500, 2400);
+		// servo3.attach(SERVO_3_PIN, 500, 2400);
 	}
 
 	String getServoSpeeds() {
@@ -109,30 +110,30 @@ public:
 	}
 
 	void runServos() {
-		if (millis() < 1000) {
-			// Turn off servos for the first 2s
-			updateServo = false;
-		}
-		else if (millis() - lastServoUpdate > 1000 / SERVO_UPDATE_HZ) {
-			// Simple non-blocking delay for servo update
-			lastServoUpdate = millis();
-			updateServo = true;
-		}
+		// if (millis() < 1000) {
+		// 	// Turn off servos for the first 2s
+		// 	updateServo = false;
+		// }
+		// else if (millis() - lastServoUpdate > 1000 / SERVO_UPDATE_HZ) {
+		// 	// Simple non-blocking delay for servo update
+		// 	lastServoUpdate = millis();
+		// 	updateServo = true;
+		// }
 
-		if (servo_master_speed < 0.1) {
-			// Turn servos on after 30s in case I forget to turn off servo debug mode
-			if (!hasPhoneEverConnected && millis() > 30000) {
-				servo_master_speed = 0.3;
-			}
-		}
+		// if (servo_master_speed < 0.1) {
+		// 	// Turn servos on after 30s in case I forget to turn off servo debug mode
+		// 	if (!hasPhoneEverConnected && millis() > 30000) {
+		// 		servo_master_speed = 0.3;
+		// 	}
+		// }
 
-		if (updateServo) {
-			// Example servo movements
-			servo1.write(int(90 + 90 * (servo_master_speed * servo1_speed)));
-			servo2.write(int(90 + 90 * (servo_master_speed * servo2_speed)));
-			servo3.write(int(90 + 90 * (servo_master_speed * servo3_speed)));
-			updateServo = false; // Prevent updating the servo in the next loop iteration
-		}
+		// if (updateServo) {
+		// 	// Example servo movements
+		// 	servo1.write(int(90 + 90 * (servo_master_speed * servo1_speed)));
+		// 	servo2.write(int(90 + 90 * (servo_master_speed * servo2_speed)));
+		// 	servo3.write(int(90 + 90 * (servo_master_speed * servo3_speed)));
+		// 	updateServo = false; // Prevent updating the servo in the next loop iteration
+		// }
 
 	}
 
