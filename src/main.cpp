@@ -14,12 +14,12 @@
 #define PRINT_SUMMARY    		false
 #define OUTPUT_TO_VISUALIZER 	false
 
-#define SERVO_RX_PIN 4
-#define SERVO_TX_PIN 5
+#define SERVO_RX_PIN 5 //4
+#define SERVO_TX_PIN  6//5
 
-#define LED_PIN_1         		7  // outside edge of ring, forward side of servo (away from input cable)
-#define LED_PIN_2         		8  // outside edge of ring, forward side of servo (toward input cable)
-#define LED_PIN_3         		6 // inside edge of ring
+#define LED_PIN_1         		44 //7  // outside edge of ring, forward side of servo (away from input cable)
+#define LED_PIN_2         		7 //8  // outside edge of ring, forward side of servo (toward input cable)
+#define LED_PIN_3         		43 //6 // inside edge of ring
 
 #define LED_COUNT       	 	130
 
@@ -30,11 +30,14 @@ const float alpha_short = 1.0 / (30.0 * 5.0); // roughly 5 seconds
 unsigned long lastUpdate = 0;
 
 int brightness = 255;
-Adafruit_NeoPixel strip(LED_COUNT, LED_PIN_1, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel strip1(LED_COUNT, LED_PIN_1, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel strip2(LED_COUNT, LED_PIN_2, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel strip3(LED_COUNT, LED_PIN_3, NEO_GRB + NEO_KHZ800);
+
 
 LedColor ledColors[LED_COUNT];
 
-ShaderManager shaderManager(strip, ledColors);
+ShaderManager shaderManager(strip1, strip2, strip3, ledColors);
 
 ServoManager servoManager;
 ServoController servoController;
@@ -53,12 +56,8 @@ void setup() {
 	Serial1.begin(115200, SERIAL_8N1, SERVO_RX_PIN, SERVO_TX_PIN);
 
 
-	strip.begin();
-	strip.clear();
-	strip.show();
-	strip.setBrightness(brightness);
-
 	// servoManager.setupServos();
+	shaderManager.setupLedStrips(brightness);
 	servoController.setupServo();
 
 	#if IS_MASTER_CONTROLLER
@@ -83,7 +82,7 @@ void loop() {
 	frame++;
 
 	if (frame % 30 == 0) {
-		strip.setBrightness(brightness);
+		shaderManager.setBrightness(brightness);
 	}
 
 	#if IS_MASTER_CONTROLLER

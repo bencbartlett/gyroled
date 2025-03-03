@@ -851,7 +851,9 @@ public:
 
 class ShaderManager {
 private:
-	Adafruit_NeoPixel& strip;
+	Adafruit_NeoPixel& strip_outside_cw;
+	Adafruit_NeoPixel& strip_outside_ccw;
+	Adafruit_NeoPixel& strip_inside_cw;
 	LedColor(&ledColors)[LED_COUNT_TOTAL];
 	// unsigned long lastShaderChangeMs = 0;
 public:
@@ -866,7 +868,12 @@ public:
 	Shader* activeShader = nullptr;
 	AccentShader* activeAccentShader = nullptr;
 
-	ShaderManager(Adafruit_NeoPixel& ledStrip, LedColor(&colors)[LED_COUNT_TOTAL]) : strip(ledStrip), ledColors(colors) {
+	ShaderManager(
+		Adafruit_NeoPixel& strip1, 
+		Adafruit_NeoPixel& strip2, 
+		Adafruit_NeoPixel& strip3, 
+		LedColor(&colors)[LED_COUNT_TOTAL]
+	) : strip_outside_cw(strip1), strip_outside_ccw(strip2), strip_inside_cw(strip3), ledColors(colors) {
 		std::vector<Shader*> shaderList = {
 			// good ones
 			new InfernoTest(ledColors),
@@ -924,6 +931,29 @@ public:
 		}
 	}
 
+	void setupLedStrips(int brightness) {
+		strip_outside_cw.begin();
+		strip_outside_cw.setBrightness(brightness);
+		strip_outside_cw.show();
+		strip_outside_cw.clear();
+
+		strip_outside_ccw.begin();
+		strip_outside_ccw.setBrightness(brightness);
+		strip_outside_ccw.show();
+		strip_outside_ccw.clear();
+
+		strip_inside_cw.begin();
+		strip_inside_cw.setBrightness(brightness);
+		strip_inside_cw.show();
+		strip_inside_cw.clear();
+	}
+
+	void setBrightness(int brightness) {
+		strip_outside_cw.setBrightness(brightness);
+		strip_outside_ccw.setBrightness(brightness);
+		strip_inside_cw.setBrightness(brightness);
+	}
+
 	void setActiveShader(const String& shaderName) {
 		auto it = shaders.find(shaderName);
 		if (it != shaders.end()) {
@@ -973,9 +1003,13 @@ public:
 		activeAccentShader->update(frame, intensity);
 		// Flush the ledColors to the strip
 		for (int i = 0; i < LED_COUNT_TOTAL; i++) {
-			strip.setPixelColor(i, ledColors[i].pack());
+			strip_outside_ccw.setPixelColor(i, ledColors[i].pack());
+			strip_outside_cw.setPixelColor(i, ledColors[LED_COUNT_TOTAL - i - 1].pack());
+			strip_inside_cw.setPixelColor(i, ledColors[i].pack());
 		}
-		strip.show();
+		strip_outside_ccw.show();
+		strip_outside_cw.show();
+		strip_inside_cw.show();
 
 		animationHasBeenChanged = false;
 	}
