@@ -1,6 +1,5 @@
 #include <Arduino.h>
 #include <Adafruit_NeoPixel.h>
-#include <ESP32Servo.h>
 
 #include "fft.h"
 #include "beatdetection.h"

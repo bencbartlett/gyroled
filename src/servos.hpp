@@ -1,5 +1,4 @@
 #include <Arduino.h>
-#include <ESP32Servo.h>
 #include <LSS.h>
 
 // ID set to default LSS ID = 0
@@ -28,7 +27,7 @@ public:
 		// Initialize the LSS bus
 		LSS::initBus(LSS_SERIAL, LSS_BAUD);
 		// Wait for the LSS to boot
-		delay(2000);
+		delay(1000);
 	}
 
 	void runServo() {
@@ -40,7 +39,7 @@ public:
 		uint16_t temp = servo.getTemperature();
 
 		int32_t targetPos = pos + 100; // 100 * 1/10deg per frame;
-		servo.wheel(6000);
+		servo.wheel(2000);
 
 		Serial.printf("Pos: %d, RPM: %d, Current: %d, Voltage: %d, Temp: %d\n", pos, rpm, current, voltage, temp);
 	}
@@ -53,9 +52,9 @@ public:
  */
 class ServoManager {
 private:
-	Servo servo1;
-	Servo servo2;
-	Servo servo3;
+	// Servo servo1;
+	// Servo servo2;
+	// Servo servo3;
 	float servo_master_speed = 0.5; // Can range from 0 to 1
 	float servo1_speed = 0.7; // Can range from -1 to 1
 	float servo2_speed = 0.85;
