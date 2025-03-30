@@ -10,7 +10,7 @@
 
 
 #define BLUETOOTH_DEBUG_MODE 	false
-#define PRINT_SUMMARY    		false
+#define PRINT_SUMMARY    		true
 #define OUTPUT_TO_VISUALIZER 	false
 
 #define SERVO_RX_PIN 5 //4
