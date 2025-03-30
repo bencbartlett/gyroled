@@ -8,7 +8,6 @@
 #include "shaders.hpp"
 #include "synchnronize.h"
 
-#define IS_MASTER_CONTROLLER    false  // to be replaced by NVS lookup
 
 #define BLUETOOTH_DEBUG_MODE 	false
 #define PRINT_SUMMARY    		false
@@ -60,9 +59,13 @@ void setup() {
 	shaderManager.setupLedStrips(brightness);
 	servoController.setupServo();
 
-	#if IS_MASTER_CONTROLLER
+	// Initialize the Synchronizer
+	synchronizer.init();
+
+	// Use runtime check instead of compile-time flag
+	if (synchronizer.role == MASTER) {
 		setupAsyncSampling();
-	#endif
+	}
 	
 	setupBluetooth();
 	#endif // BLUETOOTH_DEBUG_MODE
@@ -85,13 +88,13 @@ void loop() {
 		shaderManager.setBrightness(brightness);
 	}
 
-	#if IS_MASTER_CONTROLLER
+
+	float beatHeuristic = 0.0;
+	if (synchronizer.role == MASTER) {
 		// computeSpectrogram(spectrogram);
 		// doFFT(frequencies);
-		float beatHeuristic = computeBeatHeuristic();
-	#else
-		float beatHeuristic = 0.0;
-	#endif 
+		beatHeuristic = computeBeatHeuristic();
+	}
 
 
 	// servoManager.runServos();
@@ -130,5 +133,8 @@ void loop() {
 		// Serial.print("Servo speeds");
 		// Serial.println(servoManager.getServoSpeeds());
 	#endif // PRINT_SUMMARY
+
+	// Send synchronization data via ESP-NOW
+	synchronizer.send();
 	#endif // BLUETOOTH_DEBUG_MODE
 }
