@@ -6,6 +6,7 @@
 #include "bluetooth.h"
 #include "servos.hpp"
 #include "shaders.hpp"
+#include "synchnronize.h"
 
 #define IS_MASTER_CONTROLLER    false  // to be replaced by NVS lookup
 
