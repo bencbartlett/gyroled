@@ -162,20 +162,12 @@ void setupI2S() {
 static void async_sampling(void* arg) {
 # if USE_RAW_ADC_READ
 	while (true) {
-		// buffer[lastIndex] = analogRead(AUDIO_IN_PIN);  // On ESP32-DevKitC core 1 has a throughput of about 5995 samples/s
 		buffer[lastIndex] = adc1_get_raw(ADC_CHANNEL); // On ESP32-DevKitC core 1 has a throughput of about 23569.49 samples/s
 		lastIndex = (lastIndex + 1) % BUFFER_LENGTH;
-		// if (lastIndex == 0) {
-		//     // Serial.print("Samples/sec: ");
-		//     // Serial.println(1000000.0 * BUFFER_LENGTH / (micros() - newTime));
-		//     // newTime = micros();
-		//     vTaskDelay(1); // this keeps the watchdog happy
-		// }
 	}
 # else
 	while (true) {
 		buffer[lastIndex] = analogRead(AUDIO_IN_PIN);  // On ESP32-DevKitC core 1 has a throughput of about 5995 samples/s
-		// buffer[lastIndex] = adc1_get_raw(ADC_CHANNEL); // On ESP32-DevKitC core 1 has a throughput of about 23569.49 samples/s
 		lastIndex = (lastIndex + 1) % BUFFER_LENGTH;
 		// if (lastIndex == 0) {
 		//     // Serial.print("Samples/sec: ");

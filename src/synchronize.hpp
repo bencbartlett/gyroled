@@ -198,12 +198,23 @@ public:
 					Serial.println(i);
 				}
 			}
+
+			Serial.println("\n[DEBUG] Master sending state:");
+			Serial.print("Shader Index: "); Serial.println(state.shader_index);
+			Serial.print("Beat Intensity: "); Serial.println(state.beat_intensity);
+			Serial.print("Angle 1: "); Serial.println(state.angle_1);
+			Serial.print("Angle 2: "); Serial.println(state.angle_2);
+			Serial.print("Angle 3: "); Serial.println(state.angle_3);
+			Serial.print("Angle 4: "); Serial.println(state.angle_4);
+			Serial.print("Angle 5: "); Serial.println(state.angle_5);
+			Serial.print("Angle 6: "); Serial.println(state.angle_6);
+
 		}
 		else {
-			float currentAngle = getServoAngle();
-			Serial.print("ring ");
+			float currentAngle = millis() / 1000.0;
+			Serial.print("[DEBUG] Ring ");
 			Serial.print(deviceIndex);
-			Serial.print(" sending current angle: ");
+			Serial.print(" sending current angle (seconds since start): ");
 			Serial.println(currentAngle);
 			esp_err_t result = esp_now_send(deviceList[0], (uint8_t*)&currentAngle, sizeof(float));
 			if (result == ESP_OK) {
@@ -215,11 +226,6 @@ public:
 		}
 	}
 
-	// Dummy function to simulate reading the current servo angle.
-	float getServoAngle() {
-		// Replace with actual servo read code.
-		return 90.0;
-	}
 };
 
 Synchronizer* Synchronizer::instance = nullptr;

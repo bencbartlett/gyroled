@@ -71,10 +71,11 @@ void setup() {
 
 	// Use runtime check instead of compile-time flag
 	if (synchronizer.role == MASTER) {
-		setupAsyncSampling();
+		// setupAsyncSampling();
+		setupBluetooth();
 	}
 	
-	setupBluetooth();
+	
 	#endif // BLUETOOTH_DEBUG_MODE
 }
 
