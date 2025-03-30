@@ -60,6 +60,7 @@ void setup() {
 	servoController.setupServo();
 
 	// Initialize the Synchronizer
+	Synchronizer::instance = &synchronizer;
 	synchronizer.init();
 
 	// Use runtime check instead of compile-time flag

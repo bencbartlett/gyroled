@@ -215,13 +215,3 @@ public:
 
 Synchronizer* Synchronizer::instance = nullptr;
 Synchronizer synchronizer;
-
-void setup() {
-	Synchronizer::instance = &synchronizer;
-	synchronizer.init();
-}
-
-void loop() {
-	synchronizer.send();
-	delay(2000);
-}
