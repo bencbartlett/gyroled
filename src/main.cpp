@@ -6,7 +6,7 @@
 #include "bluetooth.h"
 #include "servos.hpp"
 #include "shaders.hpp"
-#include "synchnronize.h"
+#include "synchronize.h"
 
 
 #define BLUETOOTH_DEBUG_MODE 	false
