@@ -214,4 +214,4 @@ public:
 };
 
 Synchronizer* Synchronizer::instance = nullptr;
-Synchronizer synchronizer;
+

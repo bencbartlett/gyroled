@@ -6,7 +6,7 @@
 #include "bluetooth.h"
 #include "servos.hpp"
 #include "shaders.hpp"
-#include "synchronize.h"
+#include "synchronize.hpp"
 
 
 #define BLUETOOTH_DEBUG_MODE 	false
@@ -40,6 +40,7 @@ ShaderManager shaderManager(strip1, strip2, strip3, ledColors);
 
 ServoManager servoManager;
 ServoController servoController;
+Synchronizer synchronizer;
 
 // float spectrogram[NUM_BANDS] = { };
 // float frequencies[SAMPLES / 2] = { };
@@ -54,6 +55,8 @@ void setup() {
 	Serial.begin(115200);
 	Serial1.begin(115200, SERIAL_8N1, SERVO_RX_PIN, SERVO_TX_PIN);
 
+	delay(1000);
+
 
 	// servoManager.setupServos();
 	shaderManager.setupLedStrips(brightness);
@@ -61,6 +64,7 @@ void setup() {
 
 	// Initialize the Synchronizer
 	Synchronizer::instance = &synchronizer;
+	Serial.println("Synchronizer instance created");
 	synchronizer.init();
 
 	// Use runtime check instead of compile-time flag
