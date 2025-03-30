@@ -13,7 +13,7 @@ NUM_RINGS = 6  # Total number of rings
 
 # Set up the scene
 scene = canvas(title='<h1>Totem v2 Sim - Euler Angle Solver</h1>',
-               width=700, height=700, background=color.black,
+               width=700, height=500, background=color.black,
                resizeable=False)
 scene.forward = vector(-1, -1, -1)
 scene.caption = '\n'  # Add space for sliders and controls
@@ -25,7 +25,8 @@ radii = [r * 0.0254 * .5 for r in radii]  # Convert inches to meters
 
 # Initialize angular velocities in RPM
 omega_rpm = [30] * NUM_RINGS  # initial values in RPM
-omega_rpm = .5 * np.array([30, 35, 40, 0, 0, 0])
+omega_rpm = .5 * np.array([30, 33.1, 37.3, 0, 0, 0])
+# omega_rpm = .5 * np.array([0, 30, 0, 0, 0, 0])
 
 # Convert angular velocities to radians per second
 angular_velocities = [omega * 2 * np.pi / 60 for omega in omega_rpm]
@@ -44,6 +45,7 @@ rings = []
 
 # Initialize angles for each ring relative to the ring outside of it
 angles = [0.0 for _ in range(NUM_RINGS)]
+# angles = np.pi * np.array([0, .1, .2, .3, .4, .5])  # Initial angles in radians
 dthetas = [0.0 for _ in range(NUM_RINGS)]
 
 # Define initial axis and up vectors for each ring
@@ -110,15 +112,27 @@ for i in range(NUM_RINGS):
                        color=rings[i].color)
     down_arrows.append(down_arrow)
 
+# Create interactive plot for angular velocities
+graph1 = graph(title='Angular Velocities', xtitle='Time (s)', ytitle='Angular Velocity (RPM)', width=700, height=300, background=color.black,
+               ymin=-1.3 * MAX_RPM, ymax=1.3 * MAX_RPM, xtitlecolor=color.white, ytitlecolor=color.white, xaxiscolor=color.white, yaxiscolor=color.white)
+gcurves = []
+for i in range(NUM_RINGS):
+    gcurves.append(gcurve(graph=graph1, color=colors[i]))#, label=f'Ring {i+1}'))
+
+# Create interactive plot for ring angles
+graph2 = graph(title='Angles (/ pi)', xtitle='Time (s)', ytitle='Angle (rad)', width=700, height=300, background=color.black,
+               ymin = -2.1, ymax = 2.1, xtitlecolor=color.white, ytitlecolor=color.white, xaxiscolor=color.white, yaxiscolor=color.white)
+angle_curves = []
+for i in range(NUM_RINGS):
+    angle_curves.append(gcurve(graph=graph2, color=colors[i]))
+
+# Initial plot to make sure the graph is displayed
+for i in range(NUM_RINGS):
+    gcurves[i].plot(0, omega_rpm[i])
+    angle_curves[i].plot(0, angles[i] / np.pi)
+
 # Initialize time scale for adjusting simulation speed
 time_scale = 1.0  # Default time scale
-
-# Function to update angular velocities when sliders change
-def update_omega(index, value):
-    omega_rpm[index] = value
-    angular_velocities[index] = value * 2 * np.pi / 60  # Convert RPM to rad/s
-
-    rpm_labels[index].text = f'{omega_rpm[index]:.2f} RPM'
 
 # Create pause button
 def toggle_simulation(b):
@@ -135,6 +149,13 @@ scene.append_to_caption('\n\n')
 # Create sliders and associated text labels
 sliders = []
 rpm_labels = []
+
+# Function to update angular velocities when sliders change
+def update_omega(index, value):
+    omega_rpm[index] = value
+    angular_velocities[index] = value * 2 * np.pi / 60  # Convert RPM to rad/s
+
+    # rpm_labels[index].text = f'{omega_rpm[index]:.2f} RPM'
 
 def toggle_solver(evt):
     global USE_SOLVER
@@ -158,6 +179,19 @@ def update_time_scale(s):
 time_slider = slider(bind=update_time_scale, min=0.1, max=2, value=0.5, length=200)
 scene.append_to_caption('\n\n')
 
+# scene.append_to_caption('Time Control:\n')
+
+# def update_time_slider(s):
+#     global t
+#     if PAUSED:
+#         t = s.value
+#     t_label.text = f"Time: {t:.2f} s"
+
+# time_slider_t = slider(bind=update_time_slider, min=0, max=100, value=0, length=200)
+
+# t_label = wtext(text=f"Time: {0:.2f} s")
+# scene.append_to_caption('\n\n')
+
 for i in range(NUM_RINGS):
     scene.append_to_caption(f'Omega {i+1} (RPM): ')
 
@@ -172,7 +206,6 @@ for i in range(NUM_RINGS):
 
     scene.append_to_caption('\n')  # New line after each slider
 
-# Simulation parameters
 dt = 0.005  # Time step in seconds
 
 
@@ -188,52 +221,78 @@ t = 0
 while True:
     if PAUSED:
         continue
-    rate(100)  # Limit the simulation to 100 iterations per second
-    t += dt * time_scale  # Adjust time increment by time scale
+    rate(100)
+    t += dt * time_scale
+    # time_slider_t.value = t
+    # t_label.text = f"Time: {t:.2f} s"
 
     # Store previous angles for angular velocity calculations
     previous_angles = angles.copy()
-    previous_dthetas = dthetas.copy()
 
     if USE_SOLVER:
-        if NUM_RINGS == 6:
-            for i in range(3):
-                omega = angular_velocities[i]
-                dthetas[i] = omega * dt * time_scale
-                angles[i] += dthetas[i]  # Update the relative angle
-                angles[i] = angles[i] % (2 * np.pi)
+        for i in range(3):
+            omega = angular_velocities[i]
+            dthetas[i] = omega * dt * time_scale
+            angles[i] += dthetas[i]  # Update the relative angle
+            angles[i] = angles[i] % (2 * np.pi)
 
-            z_rot_speed = 0 * 2 * np.pi / 60
-            z_rot = R.from_rotvec([0, 0, z_rot_speed * t])
-
-            inv_rot = R.from_euler("xyx", np.array(angles[0:3])).inv()
-            desired_inner_angles = (inv_rot * z_rot).as_euler("yxy")
-
-            # If the angle jumps from -180 to 180, this is acutally a small change in the negative 
-            # direction rather than a large change in the positive direction. Let's adjust the computed
-            # dtheta values to reflect this.
-
-            for i in range(3, 6):
-                dthetas[i] = desired_inner_angles[i - 3] - previous_angles[i]
-                dthetas[i] = (dthetas[i] + np.pi) % (2 * np.pi) - np.pi 
-                dtheta_rpm = dthetas[i] * (60 / (2 * np.pi)) / (dt * time_scale)
-
-                if CLIP_RPM and abs(dtheta_rpm) > MAX_RPM:
-                    print(f"Clipping to max RPM! {dtheta_rpm}")
-                    dtheta_rpm_clipped = np.clip(dtheta_rpm, -MAX_RPM, MAX_RPM)
-                    dthetas[i] = dtheta_rpm_clipped * ((2 * np.pi) / 60) * (dt * time_scale)
-
-                new_angle = angles[i] + dthetas[i]
-                angular_velocities[i] = dthetas[i] / (dt * time_scale)
-                omega_rpm[i] = angular_velocities[i] * 60 / (2 * np.pi)
-                sliders[i].value = omega_rpm[i]
-                rpm_labels[i].text = f'{omega_rpm[i]:.2f} RPM'
-
-                angles[i] = new_angle
+            # angles[i] = (t * angular_velocities[i]) % (2 * np.pi)
 
 
-        else:
-            raise ValueError("Unsupported number of rings")
+        if False:
+            # Predictive control to avoid inner ring singularity
+            T_future = dt * time_scale * 10  # prediction horizon (10 steps ahead)
+            predicted_outer_angles = np.array(angles[0:3]) + np.array(angular_velocities[0:3]) * T_future
+            predicted_desired_inner_angles = R.from_euler("xyx", predicted_outer_angles).inv().as_euler("yxy")
+            psi2_future = predicted_desired_inner_angles[1]
+            sin_threshold = 0.3  # Minimum acceptable |sin(psi2)| to avoid singularity
+            k_corr = 0.5       # Corrective gain (tunable parameter)
+            if abs(np.sin(psi2_future)) < sin_threshold:
+                error = sin_threshold - abs(np.sin(psi2_future))
+                correction = k_corr * error * np.sign(np.sin(psi2_future))
+                print(f"Predictive control: Adjusting outer ring 2 velocity by {correction:.4f} rad/s to avoid singularity (psi2_future = {psi2_future:.4f})")
+                # Apply correction to the second outer ring (index 1)
+                angular_velocities[1] -= correction
+
+        z_rot_speed = 0 * 2 * np.pi / 60
+        z_rot = R.from_rotvec([0, 0, z_rot_speed * t])
+
+        inv_rot = R.from_euler("xyx", np.array(angles[0:3])).inv()
+        desired_inner_angles = (inv_rot * z_rot).as_euler("yxy")
+
+        # If the angle jumps from -180 to 180, this is acutally a small change in the negative 
+        # direction rather than a large change in the positive direction. Let's adjust the computed
+        # dtheta values to reflect this.
+
+
+        def unwrap_pi(delta):
+            # Unwrap the delta modulo pi to choose the equivalent angle closest to zero
+            # return ((delta + np.pi/2) % np.pi) - np.pi/2
+
+            return ((delta + np.pi) % (2 *np.pi)) - np.pi
+
+        for i in range(3, 6):
+            raw_dtheta = desired_inner_angles[i - 3] - previous_angles[i]
+            dthetas[i] = raw_dtheta
+            dthetas[i] = unwrap_pi(raw_dtheta)
+
+            dtheta_rpm = dthetas[i] * (60 / (2 * np.pi)) / (dt * time_scale)
+
+            if abs(dthetas[i]) > .9 * np.pi:
+                print(f"Dtheta jump for ring {i+1=}! {dthetas[i]}")
+
+            if CLIP_RPM and abs(dtheta_rpm) > MAX_RPM:
+                print(f"Clipping to max RPM! {dtheta_rpm}")
+                dtheta_rpm_clipped = np.clip(dtheta_rpm, -MAX_RPM, MAX_RPM)
+                dthetas[i] = dtheta_rpm_clipped * ((2 * np.pi) / 60) * (dt * time_scale)
+
+            new_angle = angles[i] + dthetas[i]
+            angular_velocities[i] = dthetas[i] / (dt * time_scale)
+            omega_rpm[i] = angular_velocities[i] * 60 / (2 * np.pi)
+            sliders[i].value = omega_rpm[i]
+            rpm_labels[i].text = f'{omega_rpm[i]:.2f} RPM'
+
+            angles[i] = new_angle
 
     else:
         for i in range(NUM_RINGS):
@@ -269,5 +328,12 @@ while True:
         return f"{value:.2f}"
     
     # print([float(angle) for angle in angles])
-    print(f"θ1 {colorize(angles[0])} θ2 {colorize(angles[1])} θ3 {colorize(angles[2])} θ4 {colorize(angles[3])} θ5 {colorize(angles[4])} θ6 {colorize(angles[5])}  |  ω1 {colorize(omega_rpm[0])} ω2 {colorize(omega_rpm[1])} ω3 {colorize(omega_rpm[2])} ω4 {colorize(omega_rpm[3])} ω5 {colorize(omega_rpm[4])} ω6 {colorize(omega_rpm[5])}")
-    # print(f"θ1 {angles[0]:.2f} θ2 {angles[1]:.2f} θ3 {angles[2]:.2f} θ4 {angles[3]:.2f} θ5 {angles[4]:.2f} θ6 {angles[5]:.2f}  |  ω1 {omega_rpm[0]:.2f} ω2 {omega_rpm[1]:.2f} ω3 {omega_rpm[2]:.2f} ω4 {omega_rpm[3]:.2f} ω5 {omega_rpm[4]:.2f} ω6 {omega_rpm[5]:.2f}")
+    print(f"θ1={colorize(angles[0])} θ2={colorize(angles[1])} θ3={colorize(angles[2])} θ4={colorize(angles[3])} θ5={colorize(angles[4])} θ6={colorize(angles[5])}  |  ω1={colorize(omega_rpm[0])} ω2={colorize(omega_rpm[1])} ω3={colorize(omega_rpm[2])} ω4={colorize(omega_rpm[3])} ω5={colorize(omega_rpm[4])} ω6={colorize(omega_rpm[5])}")
+    
+    # Update interactive plot with current angular velocities
+    for i in range(NUM_RINGS):
+        gcurves[i].plot(t, omega_rpm[i])
+
+    # Update interactive plot with current ring angles
+    for i in range(NUM_RINGS):
+        angle_curves[i].plot(t, angles[i] / np.pi)
