@@ -3,15 +3,16 @@
 #include <string.h>
 
 // Hardcoded list of device MAC addresses (index 0: master; indexes 1-6: rings)
-#define NUM_DEVICES 7
+//#define NUM_DEVICES 7
+#define NUM_DEVICES 2
 uint8_t deviceList[NUM_DEVICES][6] = {
-  {0x24, 0x6F, 0x28, 0xAA, 0xBB, 0xCC},  // master
-  {0x24, 0x6F, 0x28, 0xDD, 0xEE, 0xFF},  // ring 1 (outermost)
-  {0x24, 0x6F, 0x28, 0x11, 0x22, 0x33},  // ring 2
-  {0x24, 0x6F, 0x28, 0x44, 0x55, 0x66},  // ring 3
-  {0x24, 0x6F, 0x28, 0x77, 0x88, 0x99},  // ring 4
-  {0x24, 0x6F, 0x28, 0xAA, 0xBB, 0x01},  // ring 5
-  {0x24, 0x6F, 0x28, 0xCC, 0xDD, 0x02}   // ring 6 (sphere)
+  {0x98, 0x3D, 0xAE, 0xE5, 0xF0, 0x54},  // master
+//   {0x24, 0x6F, 0x28, 0xDD, 0xEE, 0xFF}   // ring 1 (only ring)
+  {0x98, 0x3D, 0xAE, 0xE5, 0xEF, 0xF4},  // ring 2
+  // {0x24, 0x6F, 0x28, 0x44, 0x55, 0x66},  // ring 3
+  // {0x24, 0x6F, 0x28, 0x77, 0x88, 0x99},  // ring 4
+  // {0x24, 0x6F, 0x28, 0xAA, 0xBB, 0x01},  // ring 5
+  // {0x24, 0x6F, 0x28, 0xCC, 0xDD, 0x02}   // ring 6 (sphere)
 };
 
 enum DeviceRole { MASTER, RING };
@@ -53,6 +54,13 @@ public:
 		// Determine device role based on MAC address.
 		uint8_t ownMac[6];
 		WiFi.macAddress(ownMac);
+		Serial.print("Device MAC Address: ");
+		for (int i = 0; i < 6; i++) {
+			Serial.print("0x");
+			Serial.print(ownMac[i], HEX);
+			if (i < 5) Serial.print(", ");
+		}
+		Serial.println();
 		bool recognized = false;
 		for (int i = 0; i < NUM_DEVICES; i++) {
 			if (memcmp(ownMac, deviceList[i], 6) == 0) {
@@ -83,6 +91,7 @@ public:
 
 		// Add peers.
 		if (role == MASTER) {
+			delay(1000); // Wait for ESP-NOW to stabilize on rings
 			// Master adds all rings.
 			for (int i = 1; i < NUM_DEVICES; i++) {
 				esp_now_peer_info_t peerInfo = {};
@@ -135,11 +144,11 @@ public:
 				if (senderIndex != -1) {
 					switch (senderIndex) {
 					case 1: state.angle_1 = receivedAngle; break;
-					case 2: state.angle_2 = receivedAngle; break;
-					case 3: state.angle_3 = receivedAngle; break;
-					case 4: state.angle_4 = receivedAngle; break;
-					case 5: state.angle_5 = receivedAngle; break;
-					case 6: state.angle_6 = receivedAngle; break;
+					// case 2: state.angle_2 = receivedAngle; break;
+					// case 3: state.angle_3 = receivedAngle; break;
+					// case 4: state.angle_4 = receivedAngle; break;
+					// case 5: state.angle_5 = receivedAngle; break;
+					// case 6: state.angle_6 = receivedAngle; break;
 					}
 					Serial.print("Master updated angle from ring ");
 					Serial.print(senderIndex);
@@ -159,11 +168,11 @@ public:
 				float targetAngle = 0;
 				switch (deviceIndex) {
 				case 1: targetAngle = masterState.angle_1; break;
-				case 2: targetAngle = masterState.angle_2; break;
-				case 3: targetAngle = masterState.angle_3; break;
-				case 4: targetAngle = masterState.angle_4; break;
-				case 5: targetAngle = masterState.angle_5; break;
-				case 6: targetAngle = masterState.angle_6; break;
+				// case 2: targetAngle = masterState.angle_2; break;
+				// case 3: targetAngle = masterState.angle_3; break;
+				// case 4: targetAngle = masterState.angle_4; break;
+				// case 5: targetAngle = masterState.angle_5; break;
+				// case 6: targetAngle = masterState.angle_6; break;
 				}
 				Serial.print("Ring ");
 				Serial.print(deviceIndex);
@@ -214,4 +223,3 @@ public:
 };
 
 Synchronizer* Synchronizer::instance = nullptr;
-

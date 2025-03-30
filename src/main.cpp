@@ -55,7 +55,9 @@ void setup() {
 	Serial.begin(115200);
 	Serial1.begin(115200, SERIAL_8N1, SERVO_RX_PIN, SERVO_TX_PIN);
 
-	delay(1000);
+	Serial.println("Waiting for serial to connect...");
+	delay(5000);
+	Serial.println("Done waiting");
 
 
 	// servoManager.setupServos();
