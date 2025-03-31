@@ -2,7 +2,7 @@ import numpy as np
 from vpython import *
 from scipy.spatial.transform import Rotation as R
 
-PAUSED = True  # Flag to control simulation state
+PAUSED = False  # Flag to control simulation state
 
 USE_XYXXYX = False
 USE_SOLVER = True
@@ -20,17 +20,19 @@ scene.forward = vector(-1, -1, -1)
 scene.caption = '\n'  # Add space for sliders and controls
 
 # radii = np.array([28, 24, 20, 16, 12, 8, 32])  # Radii of the rings in inches
+meter_per_inch = 0.0254  # Scale factor to convert inches to meters
 radii = np.array([36, 32, 28, 24, 20, 10, 40])  # Radii of the rings in inches
 ball_radius = 5 * 0.0254
 radii = [r * 0.0254 * .5 for r in radii]  # Convert inches to meters
 
 # Initialize angular velocities in RPM
 omega_rpm = [30] * NUM_RINGS  # initial values in RPM
-omega_rpm = .5 * np.array([30, 33.1, 37.3, 0, 0, 0])
+omega_rpm = .5 * np.array([30, 34.1, 39.3, 0, 0, 0])
 # omega_rpm = .5 * np.array([0, 30, 0, 0, 0, 0])
 
 # Convert angular velocities to radians per second
-angular_velocities = [omega * 2 * np.pi / 60 for omega in omega_rpm]
+base_angular_velocities = np.array([omega * 2 * np.pi / 60 for omega in omega_rpm])
+angular_velocity_corrections = np.array([0.0 for _ in range(NUM_RINGS)])
 
 colors = [
     color.red,
@@ -45,9 +47,9 @@ colors = [
 rings = []
 
 # Initialize angles for each ring relative to the ring outside of it
-angles = [0.0 for _ in range(NUM_RINGS)]
+angles = np.array([0.0 for _ in range(NUM_RINGS)])
 # angles = np.pi * np.array([0, .1, .2, .3, .4, .5])  # Initial angles in radians
-dthetas = [0.0 for _ in range(NUM_RINGS)]
+dthetas = np.array([0.0 for _ in range(NUM_RINGS)])
 
 # Define initial axis and up vectors for each ring
 initial_axes = []
@@ -112,6 +114,12 @@ for i in range(NUM_RINGS):
                        headlength=0.06,
                        color=rings[i].color)
     down_arrows.append(down_arrow)
+
+# Create a visual arrow to depict outer_rotation.as_rotvec()
+outer_rot_arrow = arrow(pos=vector(0, 0, 0), axis=vector(0, 0, 0), color=color.cyan, shaftwidth=0.02, headwidth=0.04, headlength=0.06)
+
+# Create a visual arrow to depict outer_rotation.as_matrix() @ [0, 0, 1]
+outer_axis_arrow = arrow(pos=vector(0, 0, 0), axis=vector(0, 0, 0), color=color.green, shaftwidth=0.02, headwidth=0.04, headlength=0.06)
 
 # Create interactive plot for angular velocities
 graph1 = graph(title='Angular Velocities', xtitle='Time (s)', ytitle='Angular Velocity (RPM)', width=700, height=300, background=color.black,
@@ -215,10 +223,6 @@ for i in range(NUM_RINGS):
 dt = 0.005  # Time step in seconds
 
 
-
-gimbal_lock_avoidance_mode = False
-gimbal_lock_timer = 0.0
-gimbal_lock_correction = [0.0, 0.0, 0.0]
 gimbal_lock_cutoff = 0.3  # Adjustable cutoff value for outer rotation norm
 
 
@@ -245,59 +249,57 @@ while True:
 
     if USE_SOLVER:
         for i in range(3):
-            omega = angular_velocities[i]
+            omega = base_angular_velocities[i] + angular_velocity_corrections[i]
             dthetas[i] = omega * dt * time_scale
             angles[i] += dthetas[i]  # Update the relative angle
             angles[i] = angles[i] % (2 * np.pi)
 
         if PREDICTIVE_AVOIDANCE:
             # New predictive control to avoid gimbal lock
-            avg_outer_omega = np.mean(np.abs(angular_velocities[0:3]))
+            avg_outer_omega = np.mean(np.abs(base_angular_velocities[0:3]))
             if avg_outer_omega > 0:
                 look_ahead_dt = (np.pi/4) / avg_outer_omega
             else:
                 look_ahead_dt = 0
 
-            predicted_outer_angles = np.array(angles[0:3]) + np.array(angular_velocities[0:3]) * look_ahead_dt
-            outer_rotation_future = R.from_euler("xyx", predicted_outer_angles)
+            predicted_outer_angles = angles[0:3] + (base_angular_velocities[0:3] + angular_velocity_corrections[0:3]) * look_ahead_dt
+            # outer_rotation_future = R.from_euler("xyx", predicted_outer_angles)
+            
+            outer_rotation_future = (
+                R.from_rotvec(predicted_outer_angles[0] * rot_axis_from_index(0))
+                * R.from_rotvec(predicted_outer_angles[1] * rot_axis_from_index(1))
+                * R.from_rotvec(predicted_outer_angles[2] * rot_axis_from_index(2))
+            )
             outer_rotation_future_magnitude = np.linalg.norm(outer_rotation_future.as_rotvec())
 
             if outer_rotation_future_magnitude < gimbal_lock_cutoff:
-                print(f"Outer rotation future vector: {outer_rotation_future.as_rotvec()}, {outer_rotation_future_magnitude=}")
-
-                if not gimbal_lock_avoidance_mode:
+                print(f"FUTURE outer rotation vector: {outer_rotation_future.as_rotvec()}, {outer_rotation_future_magnitude=}")
                     
-                    gimbal_lock_avoidance_mode = True
-                    gimbal_lock_timer = look_ahead_dt
-                    angle_correction = R.from_rotvec(
-                        outer_rotation_future.as_rotvec() * 2 * gimbal_lock_cutoff / outer_rotation_future_magnitude
-                    ).as_euler("yxy")
-                    angular_velocity_correction = angle_correction * dt / look_ahead_dt
-                    
-                    print(f"Gimbal lock avoidance activated. Timer: {gimbal_lock_timer:.2f} s")
-                    print(f"Additional correction: {angle_correction}")
-                    print(f"Angular velocity correction: {angular_velocity_correction}")
-                    breakpoint()
-                    for i in range(3):
-                        angular_velocities[i] -= angular_velocity_correction[i]
+                angle_correction = R.from_rotvec(
+                    outer_rotation_future.as_rotvec() * gimbal_lock_cutoff / outer_rotation_future_magnitude
+                ).as_euler("XYX")
+                # Compute the angular velocity correction
+                angular_velocity_corrections[0:3] = angle_correction / look_ahead_dt
+                
+                print(f"Gimbal lock avoidance activated")
+                print(f"Additional correction: {angle_correction}")
+                print(f"Angular velocity correction: {angular_velocity_corrections}")
 
-                else:
-                    print(f"Already in gimbal lock avoidance mode. Timer: {gimbal_lock_timer:.2f} s")
-                    breakpoint()
-
-            if gimbal_lock_avoidance_mode:
-                gimbal_lock_timer -= dt * time_scale
-                if gimbal_lock_timer <= 0:
-                    for i in range(3):
-                        angular_velocities[i] -= gimbal_lock_correction[i]
-                    gimbal_lock_avoidance_mode = False
-                    gimbal_lock_correction = [0.0, 0.0, 0.0]
-                    print("Gimbal lock avoidance deactivated.")
+            else:
+                # No gimbal lock avoidance needed
+                angular_velocity_corrections[0:3] = 0
 
         z_rot_speed = 0 * 2 * np.pi / 60
         z_rot = R.from_rotvec([0, 0, z_rot_speed * t])
 
+
         outer_rotation = R.from_euler("xyx", np.array(angles[0:3]))
+        # outer_rotation = (
+        #     R.from_rotvec(angles[0] * rot_axis_from_index(0))
+        #     * R.from_rotvec(angles[1] * rot_axis_from_index(1))
+        #     * R.from_rotvec(angles[2] * rot_axis_from_index(2))
+        # )
+
         desired_inner_rotation = outer_rotation.inv()
         desired_inner_angles = (desired_inner_rotation * z_rot).as_euler("yxy")
 
@@ -328,25 +330,29 @@ while True:
                 dthetas[i] = dtheta_rpm_clipped * ((2 * np.pi) / 60) * (dt * time_scale)
 
             new_angle = angles[i] + dthetas[i]
-            angular_velocities[i] = dthetas[i] / (dt * time_scale)
+            base_angular_velocities[i] = dthetas[i] / (dt * time_scale)
 
             angles[i] = new_angle
 
     else:
         for i in range(NUM_RINGS):
-            omega = angular_velocities[i]
+            omega = base_angular_velocities[i]
             dtheta = omega * dt * time_scale
             angles[i] += dtheta  # Update the relative angle
 
     # Compute cumulative rotations and update ring orientations
+
+    cumulative_rotation_matrices = []
+
     for i in range(NUM_RINGS):
 
         cumulative_rotation_matrix = np.eye(3)
-
         for j in range(i + 1):
             angle = angles[j]
             R_j = R.from_rotvec(angle * rot_axis_from_index(j)).as_matrix()
             cumulative_rotation_matrix = cumulative_rotation_matrix @ R_j  # Left multiply for intrinsic rotations
+        
+        cumulative_rotation_matrices.append(cumulative_rotation_matrix)
 
         rotated_axis = cumulative_rotation_matrix @ initial_axes[i]
         rotated_up = cumulative_rotation_matrix @ initial_ups[i]
@@ -360,9 +366,29 @@ while True:
         up_arrows[i].axis = vector(*rotated_up) * radii[i-1]
         down_arrows[i].axis = vector(*rotated_up) * -1 * radii[i-1]
 
-        omega_rpm[i] = angular_velocities[i] * 60 / (2 * np.pi)
+        omega_rpm[i] = (base_angular_velocities[i] + angular_velocity_corrections[i]) * 60 / (2 * np.pi)
         sliders[i].value = omega_rpm[i]
         rpm_labels[i].text = f'{omega_rpm[i]:.2f} RPM'
+
+    outer_rotation = (
+        R.from_rotvec(angles[0] * rot_axis_from_index(0))
+        * R.from_rotvec(angles[1] * rot_axis_from_index(1))
+        * R.from_rotvec(angles[2] * rot_axis_from_index(2))
+    )
+    # outer_rotation = R.from_matrix(cumulative_rotation_matrices[2])
+    outer_rotation_vec = outer_rotation.as_rotvec()
+    outer_rotation_vec_magnitude = np.linalg.norm(outer_rotation_vec)
+    print(f"Outer rotation vector: {outer_rotation_vec}, mag={outer_rotation_vec_magnitude}")
+    if outer_rotation_vec_magnitude < gimbal_lock_cutoff:
+        outer_rot_arrow.axis = vector(*(10 * outer_rotation_vec * meter_per_inch * 36/2 / np.pi)) 
+        outer_rot_arrow.color = color.red
+    else:
+        outer_rot_arrow.axis = vector(*(outer_rotation_vec * meter_per_inch * 36/2 / np.pi)) 
+        outer_rot_arrow.color = color.cyan
+
+    # Compute the rotated Z-axis of the outer rotation
+    rotated_y = outer_rotation.as_matrix() @ np.array([0, 1, 0])
+    outer_axis_arrow.axis = vector(*(rotated_y * radii[3]))
 
     
     if t > .1 and any(abs(omega) > MAX_RPM for omega in omega_rpm):
