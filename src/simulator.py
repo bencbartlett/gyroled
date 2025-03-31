@@ -219,7 +219,7 @@ dt = 0.005  # Time step in seconds
 gimbal_lock_avoidance_mode = False
 gimbal_lock_timer = 0.0
 gimbal_lock_correction = [0.0, 0.0, 0.0]
-gimbal_lock_cutoff = 0.4  # Adjustable cutoff value for outer rotation norm
+gimbal_lock_cutoff = 0.3  # Adjustable cutoff value for outer rotation norm
 
 
 
@@ -254,7 +254,7 @@ while True:
             # New predictive control to avoid gimbal lock
             avg_outer_omega = np.mean(np.abs(angular_velocities[0:3]))
             if avg_outer_omega > 0:
-                look_ahead_dt = (np.pi/2) / avg_outer_omega
+                look_ahead_dt = (np.pi/4) / avg_outer_omega
             else:
                 look_ahead_dt = 0
 
@@ -262,15 +262,28 @@ while True:
             outer_rotation_future = R.from_euler("xyx", predicted_outer_angles)
             outer_rotation_future_magnitude = np.linalg.norm(outer_rotation_future.as_rotvec())
 
-            if outer_rotation_future_magnitude < gimbal_lock_cutoff and not gimbal_lock_avoidance_mode:
-                gimbal_lock_avoidance_mode = True
-                gimbal_lock_timer = look_ahead_dt
-                additional_correction_factor = .2 * dt / look_ahead_dt * gimbal_lock_cutoff / outer_rotation_future_magnitude
-                additional_correction = R.from_rotvec(outer_rotation_future.as_rotvec() * additional_correction_factor).as_euler("xyx")
-                gimbal_lock_correction = additional_correction
-                print(f"Gimbal lock avoidance activated. Additional correction: {additional_correction}")
-                for i in range(3):
-                    angular_velocities[i] += gimbal_lock_correction[i]
+            if outer_rotation_future_magnitude < gimbal_lock_cutoff:
+                print(f"Outer rotation future vector: {outer_rotation_future.as_rotvec()}, {outer_rotation_future_magnitude=}")
+
+                if not gimbal_lock_avoidance_mode:
+                    
+                    gimbal_lock_avoidance_mode = True
+                    gimbal_lock_timer = look_ahead_dt
+                    angle_correction = R.from_rotvec(
+                        outer_rotation_future.as_rotvec() * 2 * gimbal_lock_cutoff / outer_rotation_future_magnitude
+                    ).as_euler("yxy")
+                    angular_velocity_correction = angle_correction * dt / look_ahead_dt
+                    
+                    print(f"Gimbal lock avoidance activated. Timer: {gimbal_lock_timer:.2f} s")
+                    print(f"Additional correction: {angle_correction}")
+                    print(f"Angular velocity correction: {angular_velocity_correction}")
+                    breakpoint()
+                    for i in range(3):
+                        angular_velocities[i] -= angular_velocity_correction[i]
+
+                else:
+                    print(f"Already in gimbal lock avoidance mode. Timer: {gimbal_lock_timer:.2f} s")
+                    breakpoint()
 
             if gimbal_lock_avoidance_mode:
                 gimbal_lock_timer -= dt * time_scale
