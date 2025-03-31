@@ -7,6 +7,7 @@ PAUSED = True  # Flag to control simulation state
 USE_XYXXYX = False
 USE_SOLVER = True
 CLIP_RPM = False
+PREDICTIVE_AVOIDANCE = True
 MAX_RPM = 60
 
 NUM_RINGS = 6  # Total number of rings
@@ -167,6 +168,11 @@ def toggle_clip(evt):
     CLIP_RPM = evt.checked
 checkbox(bind=toggle_clip, text='Clip RPM', checked=CLIP_RPM)
 
+def toggle_clip(evt):
+    global PREDICTIVE_AVOIDANCE
+    PREDICTIVE_AVOIDANCE = evt.checked
+checkbox(bind=toggle_clip, text='Predictive Avoidance', checked=PREDICTIVE_AVOIDANCE)
+
 
 scene.append_to_caption('\n\n')
 
@@ -210,6 +216,12 @@ dt = 0.005  # Time step in seconds
 
 
 
+gimbal_lock_avoidance_mode = False
+gimbal_lock_timer = 0.0
+gimbal_lock_correction = [0.0, 0.0, 0.0]
+gimbal_lock_cutoff = 0.4  # Adjustable cutoff value for outer rotation norm
+
+
 
 # TODO: rather than computing angles at each step to cancel out the angles applied by the first three rings, let's instead calculate the current orientation of the center ring and then compute the operation needed to bring the center ring toward the desired heading.
 
@@ -217,6 +229,8 @@ dt = 0.005  # Time step in seconds
 
 
 # Animation loop
+# breakpoint_times = [3.53]
+
 t = 0
 while True:
     if PAUSED:
@@ -236,29 +250,43 @@ while True:
             angles[i] += dthetas[i]  # Update the relative angle
             angles[i] = angles[i] % (2 * np.pi)
 
-            # angles[i] = (t * angular_velocities[i]) % (2 * np.pi)
+        if PREDICTIVE_AVOIDANCE:
+            # New predictive control to avoid gimbal lock
+            avg_outer_omega = np.mean(np.abs(angular_velocities[0:3]))
+            if avg_outer_omega > 0:
+                look_ahead_dt = (np.pi/2) / avg_outer_omega
+            else:
+                look_ahead_dt = 0
 
+            predicted_outer_angles = np.array(angles[0:3]) + np.array(angular_velocities[0:3]) * look_ahead_dt
+            outer_rotation_future = R.from_euler("xyx", predicted_outer_angles)
+            outer_rotation_future_magnitude = np.linalg.norm(outer_rotation_future.as_rotvec())
 
-        if False:
-            # Predictive control to avoid inner ring singularity
-            T_future = dt * time_scale * 10  # prediction horizon (10 steps ahead)
-            predicted_outer_angles = np.array(angles[0:3]) + np.array(angular_velocities[0:3]) * T_future
-            predicted_desired_inner_angles = R.from_euler("xyx", predicted_outer_angles).inv().as_euler("yxy")
-            psi2_future = predicted_desired_inner_angles[1]
-            sin_threshold = 0.3  # Minimum acceptable |sin(psi2)| to avoid singularity
-            k_corr = 0.5       # Corrective gain (tunable parameter)
-            if abs(np.sin(psi2_future)) < sin_threshold:
-                error = sin_threshold - abs(np.sin(psi2_future))
-                correction = k_corr * error * np.sign(np.sin(psi2_future))
-                print(f"Predictive control: Adjusting outer ring 2 velocity by {correction:.4f} rad/s to avoid singularity (psi2_future = {psi2_future:.4f})")
-                # Apply correction to the second outer ring (index 1)
-                angular_velocities[1] -= correction
+            if outer_rotation_future_magnitude < gimbal_lock_cutoff and not gimbal_lock_avoidance_mode:
+                gimbal_lock_avoidance_mode = True
+                gimbal_lock_timer = look_ahead_dt
+                additional_correction_factor = .2 * dt / look_ahead_dt * gimbal_lock_cutoff / outer_rotation_future_magnitude
+                additional_correction = R.from_rotvec(outer_rotation_future.as_rotvec() * additional_correction_factor).as_euler("xyx")
+                gimbal_lock_correction = additional_correction
+                print(f"Gimbal lock avoidance activated. Additional correction: {additional_correction}")
+                for i in range(3):
+                    angular_velocities[i] += gimbal_lock_correction[i]
+
+            if gimbal_lock_avoidance_mode:
+                gimbal_lock_timer -= dt * time_scale
+                if gimbal_lock_timer <= 0:
+                    for i in range(3):
+                        angular_velocities[i] -= gimbal_lock_correction[i]
+                    gimbal_lock_avoidance_mode = False
+                    gimbal_lock_correction = [0.0, 0.0, 0.0]
+                    print("Gimbal lock avoidance deactivated.")
 
         z_rot_speed = 0 * 2 * np.pi / 60
         z_rot = R.from_rotvec([0, 0, z_rot_speed * t])
 
-        inv_rot = R.from_euler("xyx", np.array(angles[0:3])).inv()
-        desired_inner_angles = (inv_rot * z_rot).as_euler("yxy")
+        outer_rotation = R.from_euler("xyx", np.array(angles[0:3]))
+        desired_inner_rotation = outer_rotation.inv()
+        desired_inner_angles = (desired_inner_rotation * z_rot).as_euler("yxy")
 
         # If the angle jumps from -180 to 180, this is acutally a small change in the negative 
         # direction rather than a large change in the positive direction. Let's adjust the computed
@@ -288,9 +316,6 @@ while True:
 
             new_angle = angles[i] + dthetas[i]
             angular_velocities[i] = dthetas[i] / (dt * time_scale)
-            omega_rpm[i] = angular_velocities[i] * 60 / (2 * np.pi)
-            sliders[i].value = omega_rpm[i]
-            rpm_labels[i].text = f'{omega_rpm[i]:.2f} RPM'
 
             angles[i] = new_angle
 
@@ -321,6 +346,14 @@ while True:
         # up_arrows[i].pos = vector(0, 0, 0) + vector(*rotated_axis) * radii[i]
         up_arrows[i].axis = vector(*rotated_up) * radii[i-1]
         down_arrows[i].axis = vector(*rotated_up) * -1 * radii[i-1]
+
+        omega_rpm[i] = angular_velocities[i] * 60 / (2 * np.pi)
+        sliders[i].value = omega_rpm[i]
+        rpm_labels[i].text = f'{omega_rpm[i]:.2f} RPM'
+
+    
+    if t > .1 and any(abs(omega) > MAX_RPM for omega in omega_rpm):
+        breakpoint()
 
     def colorize(value):
         if abs(value) > MAX_RPM:
