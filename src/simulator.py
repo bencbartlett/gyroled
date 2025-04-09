@@ -1,6 +1,7 @@
 import numpy as np
 from vpython import *
 from scipy.spatial.transform import Rotation as R
+from scipy.optimize import minimize_scalar
 from numpy import sin, cos
 
 PAUSED = False  # Flag to control simulation state
@@ -34,11 +35,12 @@ dthetas = np.array([0.0 for _ in range(NUM_RINGS)])
 # Initialize angular velocities in RPM
 omega_rpm = [30] * NUM_RINGS  # initial values in RPM
 # omega_rpm = .2 * np.array([30, 34.1, 39.3, 0, 0, 0])
-omega_rpm = .5 * np.array([30, 43, 21, 0, 0, 0])
+omega_rpm = np.array([10, 12.1, 14.1, 0, 0, 0])
 
 # Convert angular velocities to radians per second
 angular_velocities = np.array([omega * 2 * np.pi / 60 for omega in omega_rpm])
-target_angular_velocities = np.array([ω for ω in angular_velocities])
+angular_velocities_target = np.array([ω for ω in angular_velocities])
+angular_velocities_correction = np.zeros(NUM_RINGS)
 
 colors = [
     color.red,
@@ -171,7 +173,7 @@ rpm_labels = []
 # Function to update angular velocities when sliders change
 def update_omega(index, value):
     omega_rpm[index] = value
-    angular_velocities[index] = value * 2 * np.pi / 60  # Convert RPM to rad/s
+    angular_velocities_target[index] = value * 2 * np.pi / 60  # Convert RPM to rad/s
 
     # rpm_labels[index].text = f'{omega_rpm[index]:.2f} RPM'
 
@@ -238,6 +240,7 @@ gimbal_lock_timer = 0.0
 gimbal_lock_correction = [0.0, 0.0, 0.0]
 gimbal_lock_cutoff = 0.1  # Adjustable cutoff value for outer rotation norm
 
+next_avoidance_maneuver_time = 0.0
 
 
 # TODO: rather than computing angles at each step to cancel out the angles applied by the first three rings, let's instead calculate the current orientation of the center ring and then compute the operation needed to bring the center ring toward the desired heading.
@@ -254,6 +257,9 @@ while True:
         continue
     rate(100)
     t += dt * time_scale
+
+    print("-" * 20)
+    print(f"t: {t:.2f} s")
     # time_slider_t.value = t
     # t_label.text = f"Time: {t:.2f} s"
 
@@ -262,111 +268,118 @@ while True:
 
     if USE_SOLVER:
         for i in range(3):
+            angular_velocities[i] = angular_velocities_target[i] + angular_velocities_correction[i]
+            angular_velocities[i] /= np.mean(angular_velocities_target[0:3])
             omega = angular_velocities[i]
             dthetas[i] = omega * dt * time_scale
+
+            dtheta_rpm = dthetas[i] * (60 / (2 * np.pi)) / (dt * time_scale)
+            if CLIP_RPM and abs(dtheta_rpm) > MAX_RPM:
+                print(f"Clipping to max RPM! {dtheta_rpm}")
+                dtheta_rpm_clipped = np.clip(dtheta_rpm, -MAX_RPM, MAX_RPM)
+                dthetas[i] = dtheta_rpm_clipped * ((2 * np.pi) / 60) * (dt * time_scale)
+                angular_velocities[i] = dthetas[i] / (dt * time_scale)
+
             angles[i] += dthetas[i]  # Update the relative angle
             angles[i] = angles[i] % (2 * np.pi)
+
+        outer_rotation = R.from_euler("XYX", np.array(angles[0:3]))
 
         if PREDICTIVE_AVOIDANCE:
             # New predictive control to avoid gimbal lock
             avg_outer_omega = np.mean(np.abs(angular_velocities[0:3]))
             if avg_outer_omega > 0:
-                look_ahead_dt = (np.pi/3) / avg_outer_omega
+                look_ahead_dt = (np.pi * .75) / avg_outer_omega
             else:
                 look_ahead_dt = 0
+            print(f"look_ahead_dt: {look_ahead_dt:.2f} s")
 
             θ1, θ2, θ3 = angles[0:3]
             ω1, ω2, ω3 = angular_velocities[0:3]
-            Δt = look_ahead_dt
 
-            predicted_outer_angles = θ1 + ω1*Δt, θ2 + ω2*Δt, θ3 + ω3*Δt
-            outer_rotation_future = R.from_euler("XYX", predicted_outer_angles)
+            # predicted_outer_angles = np.array([θ1 + ω1*look_ahead_dt, θ2 + ω2*look_ahead_dt, θ3 + ω3*look_ahead_dt]) % (2*np.pi)
+            # outer_rotation_future = R.from_euler("XYX", predicted_outer_angles)
             
-            rotated_ring_4 = outer_rotation.as_matrix() @ rot_axis_from_index(4-1)
-            sphere_vector = rot_axis_from_index(6-1)
+            # future_rotated_ring_4 = outer_rotation.as_matrix() @ rot_axis_from_index(4-1)
+            # sphere_vector = rot_axis_from_index(6-1)
 
-            inner_product = np.dot(rotated_ring_4, sphere_vector)
             inner_product_cutoff = 0.85
-            if np.abs(inner_product) > inner_product_cutoff:
+
+            # future_inner_product = np.dot(future_rotated_ring_4, sphere_vector)
+            
+            # if np.abs(future_inner_product) > inner_product_cutoff:
                 
-                print(f"FUTURE outer rotation vector: {outer_rotation_future.as_rotvec()} | ring 4->6 inner product: {inner_product:.2f}")
+                # print(f"FUTURE outer rotation vector: {outer_rotation_future.as_rotvec()} | ring 4->6 inner product: {future_inner_product:.2f}")
 
-                grad_inner_product_ω1ω2ω3 = np.array([
-                    sin(θ1 + Δt*ω1) * (-cos(θ3 + Δt*ω3) + Δt*(ω3 + ω1*cos(θ2 + Δt*ω2)) * sin(θ3 + Δt*ω3))
-                    - cos(θ1 + Δt*ω1) * (Δt*(ω1 + ω3*cos(θ2 + Δt*ω2)) * cos(θ3 + Δt*ω3)
-                    + (cos(θ2 + Δt*ω2) - Δt*ω2*sin(θ2 + Δt*ω2)) * sin(θ3 + Δt*ω3)),
-                    
-                    Δt*ω3*cos(θ3 + Δt*ω3) * sin(θ1 + Δt*ω1) * sin(θ2 + Δt*ω2)
-                    + (Δt*ω2*cos(θ2 + Δt*ω2) * sin(θ1 + Δt*ω1)
-                    + (Δt*ω1*cos(θ1 + Δt*ω1) + sin(θ1 + Δt*ω1)) * sin(θ2 + Δt*ω2)) * sin(θ3 + Δt*ω3),
-                    
-                    -cos(θ1 + Δt*ω1) * (Δt*(ω3 + ω1*cos(θ2 + Δt*ω2)) * cos(θ3 + Δt*ω3) + sin(θ3 + Δt*ω3))
-                    + sin(θ1 + Δt*ω1) * (cos(θ3 + Δt*ω3) * (-cos(θ2 + Δt*ω2) + Δt*ω2*sin(θ2 + Δt*ω2))
-                    + Δt*(ω1 + ω3*cos(θ2 + Δt*ω2)) * sin(θ3 + Δt*ω3))
-                ])  # TODO: recalculate this for arbitrary sphere_vector
-                print(f"Gradient of inner product: {grad_inner_product_ω1ω2ω3}")
+                # We can't just look at the point t + look_ahead_dt because the gradients here at the beginning of the approach will
+                # want to just slow down the velocities to delay the inevitable. Instead, we should find the time in the future
+                # with the largest inner product and then compute the gradient at that point.
 
-                # We want to push the abs of the inner product down to zero (or up to zero if negative)
-                grad_sign = -1 if inner_product > 0 else 1
-                grad_factor = 0.1
+            # look_further_ahead_dt = (np.pi/2) / avg_outer_omega
+            def get_future_inner_product(t_future):
+                predicted_outer_angles = np.array([θ1 + ω1*t_future, θ2 + ω2*t_future, θ3 + ω3*t_future]) % (2*np.pi)
+                outer_rotation_future = R.from_euler("XYX", predicted_outer_angles)
+                future_rotated_ring_4 = outer_rotation_future.as_matrix() @ rot_axis_from_index(4-1)
+                sphere_vector = rot_axis_from_index(6-1)
+                future_inner_product = np.dot(future_rotated_ring_4, sphere_vector)
+                return future_inner_product
 
-                ω_correction = grad_sign * grad_factor * grad_inner_product_ω1ω2ω3
-                
+            def minimization_target(t_future):
+                return -np.abs(get_future_inner_product(t_future))
+            
+            if t >= next_avoidance_maneuver_time:
+            
+                sol = minimize_scalar(minimization_target, bounds=(0, look_ahead_dt))
+                Δt = sol.x
+                closest_inner_product = get_future_inner_product(Δt)
+                print(f"Closest inner product: {closest_inner_product:.2f} at t={t + Δt:.2f} s")    
 
-                # OLD LOGIC
-                if not gimbal_lock_avoidance_mode:
-                    
-                    gimbal_lock_avoidance_mode = True
-                    gimbal_lock_timer = look_ahead_dt
+                if np.abs(closest_inner_product) > inner_product_cutoff:
 
-                    sphere_vector = rot_axis_from_index(6-1)
+                    num_iterations = 10
+                    for i in range(num_iterations):
 
-                    degree = np.pi / 180
-                    adjust_vector = np.cross(
-                        outer_rotation_future.as_matrix() @ rot_axis_from_index(4-1),
-                        sphere_vector,
-                    ) 
-                    adjust_vector *= 10 * degree / np.linalg.norm(adjust_vector)
+                        ω1, ω2, ω3 = angular_velocities[0:3]
+                        
+                        sol = minimize_scalar(minimization_target, bounds=(0, look_ahead_dt))
+                        Δt = sol.x
+                        closest_inner_product = get_future_inner_product(Δt)
+                        if np.abs(closest_inner_product) < inner_product_cutoff:
+                            break
+                        # next_avoidance_maneuver_time = t + Δt
 
-                    adjusted_outer_angles = R.from_rotvec(
-                        adjust_vector
-                    ).as_euler("XYX")
-                    # angle_correction = predicted_outer_angles - adjusted_outer_angles
-                    # Compute the angular velocity correction
-                    angular_velocity_correction = adjusted_outer_angles / look_ahead_dt
-                    gimbal_lock_correction = angular_velocity_correction * .1
-                    
-                    print(f"Gimbal lock avoidance activated. Timer: {gimbal_lock_timer:.2f} s")
-                    print(f"Additional correction: {adjusted_outer_angles}")
-                    print(f"Angular velocity correction: {gimbal_lock_correction}")
-                    for i in range(3):
-                        angular_velocities[i] += gimbal_lock_correction[i]
+                        grad_inner_product_ddot_dω = np.array([
+                            sin(θ1 + Δt*ω1) * (-cos(θ3 + Δt*ω3) + Δt*(ω3 + ω1*cos(θ2 + Δt*ω2)) * sin(θ3 + Δt*ω3))
+                            - cos(θ1 + Δt*ω1) * (Δt*(ω1 + ω3*cos(θ2 + Δt*ω2)) * cos(θ3 + Δt*ω3)
+                            + (cos(θ2 + Δt*ω2) - Δt*ω2*sin(θ2 + Δt*ω2)) * sin(θ3 + Δt*ω3)),
+                            
+                            Δt*ω3*cos(θ3 + Δt*ω3) * sin(θ1 + Δt*ω1) * sin(θ2 + Δt*ω2)
+                            + (Δt*ω2*cos(θ2 + Δt*ω2) * sin(θ1 + Δt*ω1)
+                            + (Δt*ω1*cos(θ1 + Δt*ω1) + sin(θ1 + Δt*ω1)) * sin(θ2 + Δt*ω2)) * sin(θ3 + Δt*ω3),
+                            
+                            -cos(θ1 + Δt*ω1) * (Δt*(ω3 + ω1*cos(θ2 + Δt*ω2)) * cos(θ3 + Δt*ω3) + sin(θ3 + Δt*ω3))
+                            + sin(θ1 + Δt*ω1) * (cos(θ3 + Δt*ω3) * (-cos(θ2 + Δt*ω2) + Δt*ω2*sin(θ2 + Δt*ω2))
+                            + Δt*(ω1 + ω3*cos(θ2 + Δt*ω2)) * sin(θ3 + Δt*ω3))
+                        ])  # TODO: recalculate this for arbitrary sphere_vector
+                        print(f"Gradient of inner product: {grad_inner_product_ω1ω2ω3}")
 
-                # else:
-                #     print(f"Already in gimbal lock avoidance mode. Timer: {gimbal_lock_timer:.2f} s")
+                        # We want to push the abs of the inner product down to zero (or up to zero if negative)
+                        grad_sign = -1 if closest_inner_product > 0 else 1
+                        ddot_dω_correction = grad_sign * grad_inner_product_ddot_dω # dt * time_scale / look_ahead_dt
+                        
+                    # angular_velocities_correction[0:3] += dω_correction
 
-            if gimbal_lock_avoidance_mode:
-                gimbal_lock_timer -= dt * time_scale
-                if gimbal_lock_timer <= 0:
-                    for i in range(3):
-                        angular_velocities[i] -= gimbal_lock_correction[i]
-                    gimbal_lock_avoidance_mode = False
-                    gimbal_lock_correction = [0.0, 0.0, 0.0]
-                    print("Gimbal lock avoidance deactivated.")
+                    # Keep the same constant speed
+                    # angular_velocities_correction[0:3] -= np.mean(angular_velocities_correction[0:3])
 
-        z_rot_speed = 0 * 2 * np.pi / 60
-        z_rot = R.from_rotvec([0, 0, z_rot_speed * t])
+                    print(f"Angular velocity correction: {angular_velocities_correction[0:3]}, {dω_correction=}")
 
+                else:
+                    angular_velocities_correction[0:3] = 0                
 
-        outer_rotation = R.from_euler("XYX", np.array(angles[0:3]))
-        # outer_rotation = (
-        #     R.from_rotvec(angles[0] * rot_axis_from_index(0))
-        #     * R.from_rotvec(angles[1] * rot_axis_from_index(1))
-        #     * R.from_rotvec(angles[2] * rot_axis_from_index(2))
-        # )
 
         desired_inner_rotation = outer_rotation.inv()
-        desired_inner_angles = (desired_inner_rotation * z_rot).as_euler("YXY")
+        desired_inner_angles = desired_inner_rotation.as_euler("YXY")
 
         # If the angle jumps from -180 to 180, this is acutally a small change in the negative 
         # direction rather than a large change in the positive direction. Let's adjust the computed
@@ -437,11 +450,7 @@ while True:
 
     outer_rotation_vec = outer_rotation.as_rotvec()
     outer_rotation_vec_magnitude = np.linalg.norm(outer_rotation_vec)
-    # outer_rotation_vec_off_axis_magnitude = np.linalg.norm(
-    #     outer_rotation.as_matrix() @ np.array([1, 0, 1])
-    # )
-    # print(f"Outer rotation vector: {vec(*outer_rotation_vec)}, mag={outer_rotation_vec_magnitude}, off-axis mag={outer_rotation_vec_off_axis_magnitude}")
-    
+
     # Compute the rotated Z-axis of the outer rotation
     rotated_y = outer_rotation.as_matrix() @ np.array([0, 1, 0])
     outer_axis_arrow.axis = vector(*(rotated_y * radii[3]))   
@@ -461,9 +470,6 @@ while True:
         outer_rot_arrow.axis = vec(*outer_rotation_vec) * meter_per_inch * 36/2 / np.pi 
         outer_rot_arrow.color = color.cyan
 
-
-
-    
     # if not CLIP_RPM and t > .1 and any(abs(omega) > MAX_RPM for omega in omega_rpm):
     #     breakpoint()
 
