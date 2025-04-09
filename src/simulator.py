@@ -269,7 +269,6 @@ while True:
     if USE_SOLVER:
         for i in range(3):
             angular_velocities[i] = angular_velocities_target[i] + angular_velocities_correction[i]
-            angular_velocities[i] /= np.mean(angular_velocities_target[0:3])
             omega = angular_velocities[i]
             dthetas[i] = omega * dt * time_scale
 
@@ -286,84 +285,77 @@ while True:
         outer_rotation = R.from_euler("XYX", np.array(angles[0:3]))
 
         if PREDICTIVE_AVOIDANCE:
-            # New predictive control to avoid gimbal lock
+            # --- Predictive control to avoid gimbal‑lock of rings 4–6 -----------
+            #
+            # 1.  Look ahead the time required for the average outer speed to sweep
+            #     90°  (π/2).  This is our prediction horizon.
+            # 2.  Find the time Δt ∈ [0, look_ahead_dt] where the absolute inner
+            #     product between the future ring‑4 axis and the sphere axis is
+            #     largest (i.e. closest to ±1).  A large |dot| means rings 4 & 6
+            #     are nearly aligned → danger of gimbal lock.
+            # 3.  If |dot| exceeds the threshold, compute the gradient of that dot
+            #     w.r.t. the three outer angular velocities numerically, then take
+            #     a *single* corrective step whose magnitude is clamped so that
+            #     (a) we never exceed MAX_RPM and (b) we avoid wild oscillations.
+            # --------------------------------------------------------------------
             avg_outer_omega = np.mean(np.abs(angular_velocities[0:3]))
-            if avg_outer_omega > 0:
-                look_ahead_dt = (np.pi * .75) / avg_outer_omega
+            if avg_outer_omega == 0:
+                look_ahead_dt = 0.0
             else:
-                look_ahead_dt = 0
-            print(f"look_ahead_dt: {look_ahead_dt:.2f} s")
+                look_ahead_dt = (np.pi / 2) / avg_outer_omega
 
-            θ1, θ2, θ3 = angles[0:3]
-            ω1, ω2, ω3 = angular_velocities[0:3]
+            θ_vec = angles[0:3].copy()
+            ω_vec = angular_velocities[0:3].copy()
 
-            inner_product_cutoff = 0.85
+            sphere_vec = rot_axis_from_index(6-1)          # fixed reference axis
+            ring4_vec   = rot_axis_from_index(4-1)
 
-            # We can't just look at the point t + look_ahead_dt because the gradients here at the beginning of the approach will
-            # want to just slow down the velocities to delay the inevitable. Instead, we should find the time in the future
-            # with the largest inner product and then compute the gradient at that point.
-
-            # look_further_ahead_dt = (np.pi/2) / avg_outer_omega
-            def get_future_inner_product(t_future):
-                predicted_outer_angles = np.array([θ1 + ω1*t_future, θ2 + ω2*t_future, θ3 + ω3*t_future]) % (2*np.pi)
-                outer_rotation_future = R.from_euler("XYX", predicted_outer_angles)
-                future_rotated_ring_4 = outer_rotation_future.as_matrix() @ rot_axis_from_index(4-1)
-                sphere_vector = rot_axis_from_index(6-1)
-                future_inner_product = np.dot(future_rotated_ring_4, sphere_vector)
-                return future_inner_product
-
-            def minimization_target(t_future):
-                return -np.abs(get_future_inner_product(t_future))
-            
-            if t >= next_avoidance_maneuver_time:
-            
-                sol = minimize_scalar(minimization_target, bounds=(0, look_ahead_dt))
-                Δt = sol.x
-                closest_inner_product = get_future_inner_product(Δt)
-                print(f"Closest inner product: {closest_inner_product:.2f} at t={t + Δt:.2f} s")    
-
-                if np.abs(closest_inner_product) > inner_product_cutoff:
-
-                    num_iterations = 10
-                    for i in range(num_iterations):
-
-                        ω1, ω2, ω3 = angular_velocities[0:3]
-                        
-                        sol = minimize_scalar(minimization_target, bounds=(0, look_ahead_dt))
-                        Δt = sol.x
-                        closest_inner_product = get_future_inner_product(Δt)
-                        if np.abs(closest_inner_product) < inner_product_cutoff:
-                            break
-                        # next_avoidance_maneuver_time = t + Δt
-
-                        grad_inner_product_ddot_dω = np.array([
-                            sin(θ1 + Δt*ω1) * (-cos(θ3 + Δt*ω3) + Δt*(ω3 + ω1*cos(θ2 + Δt*ω2)) * sin(θ3 + Δt*ω3))
-                            - cos(θ1 + Δt*ω1) * (Δt*(ω1 + ω3*cos(θ2 + Δt*ω2)) * cos(θ3 + Δt*ω3)
-                            + (cos(θ2 + Δt*ω2) - Δt*ω2*sin(θ2 + Δt*ω2)) * sin(θ3 + Δt*ω3)),
-                            
-                            Δt*ω3*cos(θ3 + Δt*ω3) * sin(θ1 + Δt*ω1) * sin(θ2 + Δt*ω2)
-                            + (Δt*ω2*cos(θ2 + Δt*ω2) * sin(θ1 + Δt*ω1)
-                            + (Δt*ω1*cos(θ1 + Δt*ω1) + sin(θ1 + Δt*ω1)) * sin(θ2 + Δt*ω2)) * sin(θ3 + Δt*ω3),
-                            
-                            -cos(θ1 + Δt*ω1) * (Δt*(ω3 + ω1*cos(θ2 + Δt*ω2)) * cos(θ3 + Δt*ω3) + sin(θ3 + Δt*ω3))
-                            + sin(θ1 + Δt*ω1) * (cos(θ3 + Δt*ω3) * (-cos(θ2 + Δt*ω2) + Δt*ω2*sin(θ2 + Δt*ω2))
-                            + Δt*(ω1 + ω3*cos(θ2 + Δt*ω2)) * sin(θ3 + Δt*ω3))
-                        ])  # TODO: recalculate this for arbitrary sphere_vector
-                        print(f"Gradient of inner product: {grad_inner_product_ddot_dω}")
-
-                        # We want to push the abs of the inner product down to zero (or up to zero if negative)
-                        grad_sign = -1 if closest_inner_product > 0 else 1
-                        ddot_dω_correction = grad_sign * grad_inner_product_ddot_dω # dt * time_scale / look_ahead_dt
-                        
-                    # angular_velocities_correction[0:3] += dω_correction
-
-                    # Keep the same constant speed
-                    # angular_velocities_correction[0:3] -= np.mean(angular_velocities_correction[0:3])
-
-                    print(f"Angular velocity correction: {angular_velocities_correction[0:3]}, {ddot_dω_correction=}")
-
+            def future_inner_product(delta_t, w_override=None):
+                """Inner product between future rotated ring‑4 axis and sphere axis."""
+                if w_override is None:
+                    w_use = ω_vec
                 else:
-                    angular_velocities_correction[0:3] = 0                
+                    w_use = w_override
+                future_angles = (θ_vec + w_use * delta_t) % (2*np.pi)
+                R_future = R.from_euler("XYX", future_angles)
+                rotated_ring4 = R_future.as_matrix() @ ring4_vec
+                return np.dot(rotated_ring4, sphere_vec)
+
+            # Find Δt with largest |inner product|
+            sol = minimize_scalar(lambda τ: -abs(future_inner_product(τ)),
+                                  bounds=(0.0, look_ahead_dt), method='bounded')
+            Δt_star = sol.x
+            ip_star = future_inner_product(Δt_star)
+
+            inner_prod_threshold = 0.85
+            if abs(ip_star) > inner_prod_threshold:
+                # Numerical gradient d(ip)/dω  (three‑point finite diff)
+                eps = 1e-3
+                grad = np.zeros(3)
+                for k in range(3):
+                    w_plus  = ω_vec.copy(); w_plus[k]  += eps
+                    w_minus = ω_vec.copy(); w_minus[k] -= eps
+                    grad[k] = (future_inner_product(Δt_star, w_plus)
+                               - future_inner_product(Δt_star, w_minus)) / (2*eps)
+
+                # Desired change in inner product to reach threshold
+                delta_ip = inner_prod_threshold * np.sign(ip_star) - ip_star
+                # Smallest‑norm Δω that achieves that change (project along grad)
+                denom = np.dot(grad, grad) + 1e-8
+                delta_ω = (delta_ip / denom) * grad   # least‑squares step
+
+                # Clamp magnitude so we never exceed MAX_RPM and keep things smooth
+                max_Δω = (MAX_RPM * 2*np.pi/60) * 0.25   # allow 25 % of full speed per step
+                delta_ω = np.clip(delta_ω, -max_Δω, max_Δω)
+
+                # Low‑pass filter to avoid oscillations
+                α = 0.2
+                angular_velocities_correction[0:3] = (
+                    (1-α) * angular_velocities_correction[0:3] + α * delta_ω
+                )
+            else:
+                # Gradually decay any previous correction
+                angular_velocities_correction[0:3] *= 0.9
 
 
         desired_inner_rotation = outer_rotation.inv()
