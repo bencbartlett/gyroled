@@ -297,23 +297,11 @@ while True:
             θ1, θ2, θ3 = angles[0:3]
             ω1, ω2, ω3 = angular_velocities[0:3]
 
-            # predicted_outer_angles = np.array([θ1 + ω1*look_ahead_dt, θ2 + ω2*look_ahead_dt, θ3 + ω3*look_ahead_dt]) % (2*np.pi)
-            # outer_rotation_future = R.from_euler("XYX", predicted_outer_angles)
-            
-            # future_rotated_ring_4 = outer_rotation.as_matrix() @ rot_axis_from_index(4-1)
-            # sphere_vector = rot_axis_from_index(6-1)
-
             inner_product_cutoff = 0.85
 
-            # future_inner_product = np.dot(future_rotated_ring_4, sphere_vector)
-            
-            # if np.abs(future_inner_product) > inner_product_cutoff:
-                
-                # print(f"FUTURE outer rotation vector: {outer_rotation_future.as_rotvec()} | ring 4->6 inner product: {future_inner_product:.2f}")
-
-                # We can't just look at the point t + look_ahead_dt because the gradients here at the beginning of the approach will
-                # want to just slow down the velocities to delay the inevitable. Instead, we should find the time in the future
-                # with the largest inner product and then compute the gradient at that point.
+            # We can't just look at the point t + look_ahead_dt because the gradients here at the beginning of the approach will
+            # want to just slow down the velocities to delay the inevitable. Instead, we should find the time in the future
+            # with the largest inner product and then compute the gradient at that point.
 
             # look_further_ahead_dt = (np.pi/2) / avg_outer_omega
             def get_future_inner_product(t_future):
@@ -361,7 +349,7 @@ while True:
                             + sin(θ1 + Δt*ω1) * (cos(θ3 + Δt*ω3) * (-cos(θ2 + Δt*ω2) + Δt*ω2*sin(θ2 + Δt*ω2))
                             + Δt*(ω1 + ω3*cos(θ2 + Δt*ω2)) * sin(θ3 + Δt*ω3))
                         ])  # TODO: recalculate this for arbitrary sphere_vector
-                        print(f"Gradient of inner product: {grad_inner_product_ω1ω2ω3}")
+                        print(f"Gradient of inner product: {grad_inner_product_ddot_dω}")
 
                         # We want to push the abs of the inner product down to zero (or up to zero if negative)
                         grad_sign = -1 if closest_inner_product > 0 else 1
@@ -372,7 +360,7 @@ while True:
                     # Keep the same constant speed
                     # angular_velocities_correction[0:3] -= np.mean(angular_velocities_correction[0:3])
 
-                    print(f"Angular velocity correction: {angular_velocities_correction[0:3]}, {dω_correction=}")
+                    print(f"Angular velocity correction: {angular_velocities_correction[0:3]}, {ddot_dω_correction=}")
 
                 else:
                     angular_velocities_correction[0:3] = 0                
@@ -384,7 +372,6 @@ while True:
         # If the angle jumps from -180 to 180, this is acutally a small change in the negative 
         # direction rather than a large change in the positive direction. Let's adjust the computed
         # dtheta values to reflect this.
-
 
         def unwrap_pi(delta):
             # Unwrap the delta modulo pi to choose the equivalent angle closest to zero
