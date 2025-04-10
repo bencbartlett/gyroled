@@ -15,14 +15,23 @@
 
 #define SERVO_DEBUG_MODE false
 
+extern float updatesPerSecond; // from main.cpp
+
+
 /**
- * Run by slave controllers on each local ring to drive that ring's servo.
+ * Run by controllers on each ring to locally drive that ring's servo.
  */
 class ServoController {
 private:
 	LSS servo = LSS(LSS_ID);
 
 public:
+
+	float current_angle = 0.0;
+	float target_angle = 0.0;
+	float current_rpm = 0.0;
+	float target_rpm = 0.0;
+
 	void setupServo() {
 		// Initialize the LSS bus
 		LSS::initBus(LSS_SERIAL, LSS_BAUD);
@@ -31,17 +40,30 @@ public:
 	}
 
 	void runServo() {
-		// Placeholder for now
-		int32_t pos = servo.getPosition();
-		uint8_t rpm = servo.getSpeedRPM();
-		uint16_t current = servo.getCurrent();
-		uint16_t voltage = servo.getVoltage();
-		uint16_t temp = servo.getTemperature();
+		// Calculate required RPM to reach target_angle by next frame
+		float deltaAngle = target_angle - current_angle;
 
-		int32_t targetPos = pos + 100; // 100 * 1/10deg per frame;
-		servo.wheel(2000);
+		// Wrap-around handling for shortest path across 0/360 boundary
+		if (deltaAngle > 180.0f) {
+			deltaAngle -= 360.0f;
+		} else if (deltaAngle < -180.0f) {
+			deltaAngle += 360.0f;
+		}
+		
+		float rotations = deltaAngle / 360.0f;
+		int8_t speedCmd = 0;
 
-		Serial.printf("Pos: %d, RPM: %d, Current: %d, Voltage: %d, Temp: %d\n", pos, rpm, current, voltage, temp);
+		float rpmValue = rotations * (60.0f / updatesPerSecond);
+
+		speedCmd = static_cast<int8_t>(rpmValue);
+		servo.wheelRPM(speedCmd);
+
+		// Update current angle and RPM from servo feedback
+		int32_t posRaw = servo.getPosition();
+		current_angle = posRaw / 10.0f; // convert 1/10° to degrees
+		
+		int8_t rpmRaw = servo.getSpeedRPM();
+		current_rpm = rpmRaw;
 	}
 
 };

@@ -23,9 +23,9 @@
 #define LED_COUNT       	 	130
 
 int frame = 0;
-float updatesPerSecond = 30.0;
+float updatesPerSecond = 50.0;
 
-const float alpha_short = 1.0 / (30.0 * 5.0); // roughly 5 seconds
+const float alpha_short = 1.0 / (50.0 * 1.0); // roughly 1 seconds
 unsigned long lastUpdate = 0;
 
 int brightness = 255;
@@ -110,11 +110,6 @@ void loop() {
 
 	shaderManager.run(frame, beatHeuristic);
 
-	float updatesPerSecondImmediate = 1000.0 / float(millis() - lastUpdate);
-	lastUpdate = millis();
-
-	updatesPerSecond = alpha_short * updatesPerSecondImmediate + (1.0 - alpha_short) * updatesPerSecond;
-
 	#if OUTPUT_TO_VISUALIZER
 		String foo = "[SPECTROGRAM]:";
 		for (uint16_t i = 0; i < NUM_BANDS; i++) {
@@ -143,6 +138,12 @@ void loop() {
 	#endif // PRINT_SUMMARY
 
 	// Send synchronization data via ESP-NOW
-	synchronizer.send();
+	synchronizer.synchronize();
 	#endif // BLUETOOTH_DEBUG_MODE
+
+
+	float updatesPerSecondImmediate = 1000.0 / float(millis() - lastUpdate);
+	lastUpdate = millis();
+
+	updatesPerSecond = alpha_short * updatesPerSecondImmediate + (1.0 - alpha_short) * updatesPerSecond;
 }
