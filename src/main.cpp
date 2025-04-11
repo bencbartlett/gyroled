@@ -7,6 +7,7 @@
 #include "servos.hpp"
 #include "shaders.hpp"
 #include "synchronize.hpp"
+#include "trajectory.hpp"
 
 
 #define BLUETOOTH_DEBUG_MODE 	false
@@ -41,6 +42,8 @@ ShaderManager shaderManager(strip1, strip2, strip3, ledColors);
 ServoManager servoManager;
 ServoController servoController;
 Synchronizer synchronizer;
+TrajectoryPlanner trajectoryPlanner;
+State state;
 
 // float spectrogram[NUM_BANDS] = { };
 // float frequencies[SAMPLES / 2] = { };
@@ -64,12 +67,10 @@ void setup() {
 	shaderManager.setupLedStrips(brightness);
 	servoController.setupServo();
 
-	// Initialize the Synchronizer
 	Synchronizer::instance = &synchronizer;
 	Serial.println("Synchronizer instance created");
 	synchronizer.init();
 
-	// Use runtime check instead of compile-time flag
 	if (synchronizer.role == MASTER) {
 		// setupAsyncSampling();
 		setupBluetooth();
@@ -90,6 +91,14 @@ void loop() {
 	Serial.println(servoManager.getServoSpeeds());
 
 	#else
+
+    // On the master node, step the trajectory forward at 10 RPM
+	if (synchronizer.role == MASTER) {
+		unsigned long now = millis();
+    	float dtTraj = (lastUpdate == 0) ? (1.0f / updatesPerSecond) : ((now - lastUpdate) / 1000.0f);
+		trajectoryPlanner.update(state, dtTraj);
+	}
+
 	frame++;
 
 	if (frame % 30 == 0) {

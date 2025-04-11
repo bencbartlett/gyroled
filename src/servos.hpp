@@ -27,10 +27,10 @@ private:
 
 public:
 
-	float current_angle = 0.0;
 	float target_angle = 0.0;
-	float current_rpm = 0.0;
-	float target_rpm = 0.0;
+	float current_angle = 0.0;
+	// float current_rpm = 0.0;
+	// float target_rpm = 0.0;
 
 	void setupServo() {
 		// Initialize the LSS bus
@@ -49,7 +49,7 @@ public:
 		} else if (deltaAngle < -180.0f) {
 			deltaAngle += 360.0f;
 		}
-		
+
 		float rotations = deltaAngle / 360.0f;
 		int8_t speedCmd = 0;
 
@@ -62,8 +62,8 @@ public:
 		int32_t posRaw = servo.getPosition();
 		current_angle = posRaw / 10.0f; // convert 1/10° to degrees
 		
-		int8_t rpmRaw = servo.getSpeedRPM();
-		current_rpm = rpmRaw;
+		// int8_t rpmRaw = servo.getSpeedRPM();
+		// current_rpm = rpmRaw;
 	}
 
 };

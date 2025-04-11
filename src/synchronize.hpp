@@ -1,3 +1,4 @@
+#include <Arduino.h>
 #include <WiFi.h>
 #include <esp_now.h>
 #include <string.h>
@@ -21,36 +22,54 @@ extern ServoController servoController;
 
 // The synchronization packet sent over ESP‑NOW
 struct State {
-    int   shader_index;
-    float beat_intensity;
+
+	bool isPaused = true;
+
+    // Frame/tempo bookkeeping
+    uint16_t frame            = 0;
+    unsigned long time        = 0;
+	unsigned long lastUpdate  = 0;
+    float updatesPerSecond    = 50.0f; 
+
+    // Visual state
+    int   shader_index   = 0;
+    float beat_intensity = 0.0f;
 
     // Per‑ring telemetry
-    float current_angle_1;
-    float target_angle_1;
+    float current_angle_1 = 0.0f;
+    float target_angle_1  = 0.0f;
 
-    float current_angle_2;
-    float target_angle_2;
+    float current_angle_2 = 0.0f;
+    float target_angle_2  = 0.0f;
 
-    float current_angle_3;
-    float target_angle_3;
+    float current_angle_3 = 0.0f;
+    float target_angle_3  = 0.0f;
 
-    float current_angle_4;
-    float target_angle_4;
+    float current_angle_4 = 0.0f;
+    float target_angle_4  = 0.0f;
 
-    float current_angle_5;
-    float target_angle_5;
+    float current_angle_5 = 0.0f;
+    float target_angle_5  = 0.0f;
 
-    float current_angle_6;
-    float target_angle_6;
+    float current_angle_6 = 0.0f;
+    float target_angle_6  = 0.0f;
 };
 
+extern State state;
+
 class Synchronizer {
+
 public:
-	State state;
+
 	DeviceRole role;
 	int deviceIndex; // 0 = master, 1-6 = ring index
 
 	Synchronizer() {
+		state.time			 = 0;
+		state.lastUpdate		 = 0;
+		state.updatesPerSecond = 50.0f;
+		state.frame			 = 0;
+
 		state.shader_index      = 0;
 		state.beat_intensity     = 0.0f;
 
