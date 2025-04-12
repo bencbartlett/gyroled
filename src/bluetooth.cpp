@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <BLEDevice.h>
 #include <string>
+#include "state.hpp"
 #include "servos.hpp"
 #include "shaders.hpp"
 
@@ -11,8 +12,7 @@
 
 extern ShaderManager shaderManager;
 extern ServoManager servoManager;
-
-extern int brightness;
+extern State state;
 
 String receivedValue = "None";
 
@@ -65,7 +65,7 @@ class MyCallbacks : public BLECharacteristicCallbacks {
 			sendStringToPhone("servoSpeeds", servoManager.getServoSpeeds());
 		} 
 		else if (value == "getBrightness") {
-			sendStringToPhone("brightness", String(brightness));
+			sendStringToPhone("brightness", String(state.brightness));
 		}
 		else if (value == "activateAnimation") {
 			shaderManager.useAnimation = true;
@@ -103,7 +103,7 @@ class MyCallbacks : public BLECharacteristicCallbacks {
 			else if (cmd == "setBrightness") {
 				// Assume the value is formatted like "servo1;90"
 				int newBrightness = std::stoi(arg);
-				brightness = newBrightness;
+				state.brightness = newBrightness;
 			}
 			else {
 				Serial.println("Invalid command");

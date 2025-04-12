@@ -1,5 +1,9 @@
 #include <Arduino.h>
 #include <LSS.h>
+#include <cmath>
+
+#include "state.hpp"
+
 
 // ID set to default LSS ID = 0
 #define LSS_ID		(0)  // This is 0 for all servos since there is only one servo per ring
@@ -15,8 +19,8 @@
 
 #define SERVO_DEBUG_MODE false
 
-extern float updatesPerSecond; // from main.cpp
-
+// extern float updatesPerSecond; // from main.cpp
+extern State state;
 
 /**
  * Run by controllers on each ring to locally drive that ring's servo.
@@ -24,10 +28,12 @@ extern float updatesPerSecond; // from main.cpp
 class ServoController {
 private:
 	LSS servo = LSS(LSS_ID);
+	float error = 0.0f;
+	float prev_error = 0.0f;
 
 public:
 
-	float target_angle = 0.0;
+	float target_angle = 0.0;  // Target angle in degrees for this servo
 	float current_angle = 0.0;
 	// float current_rpm = 0.0;
 	// float target_rpm = 0.0;
@@ -37,33 +43,60 @@ public:
 		LSS::initBus(LSS_SERIAL, LSS_BAUD);
 		// Wait for the LSS to boot
 		delay(1000);
+
+		// servo.setAngularStiffness(0);
+		// servo.setAngularHoldingStiffness(0);
+		// servo.setAngularAcceleration(15);
+		// servo.setAngularDeceleration(15);
+
 	}
 
 	void runServo() {
-		// Calculate required RPM to reach target_angle by next frame
-		float deltaAngle = target_angle - current_angle;
+	    if (state.isPaused) {
+	        servo.hold();
+	    } else {
+	        /* ------------------ PD speed controller ------------------ */
+	        // Proportional‑Derivative gains (tune as needed)
+	        constexpr float Kp = 1.2f;   // tuned for 30 kg·cm servo & ring inertia
+	        constexpr float Kd = 0.20f;  
 
-		// Wrap-around handling for shortest path across 0/360 boundary
-		if (deltaAngle > 180.0f) {
-			deltaAngle -= 360.0f;
-		} else if (deltaAngle < -180.0f) {
-			deltaAngle += 360.0f;
-		}
+			auto wrap360 = [](float a) {
+				a = fmodf(a, 360.0f);
+				return (a < 0) ? a + 360.0f : a;
+			};
+			
+	        // --- Position error ---			
+			error = wrap360(target_angle) - wrap360(current_angle);
+			if (error >  180.0f) error -= 360.0f;
+			if (error < -180.0f) error += 360.0f;
+	
+	        /* ----- PD control with derivative of the wrapped error ----- */
+	        const float dt = 1.0f / state.updatesPerSecond;        // seconds between loops
+	        float dErr     = (error - prev_error) / dt;            // deg/s
+	
+	        // --- PD control law using error and its derivative ---
+	        float command_deg_per_s = Kp * error + Kd * dErr;
+	
+	        // --- Convert to 1/10°/s for wheel() ---
+	        int16_t speedCmd = static_cast<int16_t>(command_deg_per_s * 10.0f);
+	
+	        // Clamp to ±10 RPM  (≈ ±60 deg/s  →  ±600 × 1/10°/s)
+	        const int16_t MAX_CMD = 600;
+	        if (speedCmd >  MAX_CMD) speedCmd =  MAX_CMD;
+	        if (speedCmd < -MAX_CMD) speedCmd = -MAX_CMD;
+	
+	        servo.wheel(speedCmd);
 
-		float rotations = deltaAngle / 360.0f;
-		int8_t speedCmd = 0;
 
-		float rpmValue = rotations * (60.0f / updatesPerSecond);
-
-		speedCmd = static_cast<int8_t>(rpmValue);
-		servo.wheelRPM(speedCmd);
-
-		// Update current angle and RPM from servo feedback
-		int32_t posRaw = servo.getPosition();
-		current_angle = posRaw / 10.0f; // convert 1/10° to degrees
-		
-		// int8_t rpmRaw = servo.getSpeedRPM();
-		// current_rpm = rpmRaw;
+	    #if SERVO_DEBUG_MODE
+	        Serial.printf("Err: %6.1f°  dErr: %6.1f°/s  Cmd: %4d (1/10°/s)\n",
+	                      error, dErr, speedCmd);
+	    #endif
+	    }
+	
+	    // Refresh feedback for next loop
+	    current_angle = static_cast<float>(servo.getPosition()) / 10.0f;
+	    prev_error = error;           // save for next derivative calculation
 	}
 
 };

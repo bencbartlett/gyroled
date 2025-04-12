@@ -3,6 +3,7 @@
 #include <cmath>      // Include for std::floor and std::ceil
 
 #include "fft.h"
+#include "state.hpp"
 
 
 #define HEURISTIC_BUFFER_SIZE 			2048  // at 30fps this is 68 seconds of context
@@ -35,8 +36,10 @@ unsigned long elapsedBeats = 0;
 
 float frequencies[SAMPLES / 2] = { 0. };
 
-extern int frame; // from main.cpp
-extern float updatesPerSecond; // from main.cpp
+extern State state;
+
+// extern int frame; // from main.cpp
+// extern float updatesPerSecond; // from main.cpp
 
 
 float calculateRecencyFactor() {
@@ -104,14 +107,14 @@ float computeBeatHeuristic() {
 
 	// If the heuristic is above some percentile of the buffer, we have a beat
 	float fudgeFactor = 1.05;
-	float secondsPerFrame = 1. / updatesPerSecond;
+	float secondsPerFrame = 1. / state.updatesPerSecond;
 	float typicalBeatsPerSecond = TYPICAL_BEATS_PER_MINUTE / 60.;
 	float typicalBeatsPerFrame = typicalBeatsPerSecond * secondsPerFrame;
 
 	float percentile = (1.0 - fudgeFactor * typicalBeatsPerFrame) * 100.0;
 
 	// float lowHeuristicsThreshold;
-	if (frame % 30 == 0) {
+	if (state.frame % 30 == 0) {
 		if (time > 30000) {
 			heuristicThreshold = computePercentile(heuristicsBuffer, percentile);
 			// lowHeuristicsThreshold = computePercentile(heuristicsBuffer, 45);
@@ -128,8 +131,8 @@ float computeBeatHeuristic() {
 		// Find the heuristics entries from the buffer that are within expectedBpm +/- bpmWindow
 		float beatDurationMin = 60. / (expectedBpm + bpmWindow);  // number of seconds per beat
 		float beatDurationMax = 60. / (expectedBpm - bpmWindow);
-		int timestepsAgoMin = int(updatesPerSecond * beatDurationMin);
-		int timestepsAgoMax = int(updatesPerSecond * beatDurationMax);
+		int timestepsAgoMin = int(state.updatesPerSecond * beatDurationMin);
+		int timestepsAgoMax = int(state.updatesPerSecond * beatDurationMax);
 
 		// Sum the heuristics in the range
 		float avgHeuristicInWindow = 0.0;

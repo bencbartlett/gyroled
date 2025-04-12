@@ -2,60 +2,52 @@
 #include <WiFi.h>
 #include <esp_now.h>
 #include <string.h>
+#include "state.hpp"
 
 // Hardcoded list of device MAC addresses (index 0: master; indexes 1-6: rings)
-//#define NUM_DEVICES 7
-#define NUM_DEVICES 2
+#define NUM_DEVICES 7
+uint8_t BROADCAST_ALL[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 uint8_t deviceList[NUM_DEVICES][6] = {  // TODO: finish filling out this list
   {0xD8, 0x3B, 0xDA, 0x45, 0xCE, 0x4C},  // master
-//   {0x24, 0x6F, 0x28, 0xDD, 0xEE, 0xFF}   // ring 1 (only ring)
-  {0x98, 0x3D, 0xAE, 0xE5, 0xEF, 0xF4},  // ring 2
-  // {0x24, 0x6F, 0x28, 0x44, 0x55, 0x66},  // ring 3
-  // {0x24, 0x6F, 0x28, 0x77, 0x88, 0x99},  // ring 4
-  // {0x24, 0x6F, 0x28, 0xAA, 0xBB, 0x01},  // ring 5
-  // {0x24, 0x6F, 0x28, 0xCC, 0xDD, 0x02}   // ring 6 (sphere)
+  {0x24, 0x58, 0x7C, 0xE4, 0x1A, 0x50},  // ring 1 (outer ring)
+  {0x98, 0x3D, 0xAE, 0xEA, 0x0D, 0xC8},  // ring 2
+  {0x98, 0x3D, 0xAE, 0xE5, 0xEF, 0xF4},  // ring 3
+  {0x98, 0x3D, 0xAE, 0xEA, 0x23, 0x74},  // ring 4
+  {0x24, 0xEC, 0x4A, 0x00, 0x4E, 0xC0},  // ring 5
+  {0x98, 0x3D, 0xAE, 0xE7, 0x92, 0x50}   // ring 6 (sphere)
 };
 
 enum DeviceRole { MASTER, RING };
 
 extern ServoController servoController;
 
-// The synchronization packet sent over ESP‑NOW
-struct State {
-
-	bool isPaused = true;
-
-    // Frame/tempo bookkeeping
-    uint16_t frame            = 0;
-    unsigned long time        = 0;
-	unsigned long lastUpdate  = 0;
-    float updatesPerSecond    = 50.0f; 
-
-    // Visual state
-    int   shader_index   = 0;
-    float beat_intensity = 0.0f;
-
-    // Per‑ring telemetry
-    float current_angle_1 = 0.0f;
-    float target_angle_1  = 0.0f;
-
-    float current_angle_2 = 0.0f;
-    float target_angle_2  = 0.0f;
-
-    float current_angle_3 = 0.0f;
-    float target_angle_3  = 0.0f;
-
-    float current_angle_4 = 0.0f;
-    float target_angle_4  = 0.0f;
-
-    float current_angle_5 = 0.0f;
-    float target_angle_5  = 0.0f;
-
-    float current_angle_6 = 0.0f;
-    float target_angle_6  = 0.0f;
-};
-
 extern State state;
+
+static volatile bool tx_done      = true;
+static volatile esp_now_send_status_t last_status;
+
+void IRAM_ATTR onDataSent(const uint8_t *mac,
+                          esp_now_send_status_t status)
+{
+    last_status = status;
+    tx_done     = true;            // free the “slot”
+}
+
+void sendStateToRing(const uint8_t *addr, const State &st)
+{
+    while (!tx_done) {             // wait for previous packet to drain
+        vTaskDelay(1);             // give Wi‑Fi task time (~1 ms)
+    }
+
+    tx_done = false;
+    esp_err_t err = esp_now_send(addr,
+                                 reinterpret_cast<const uint8_t*>(&st),
+                                 sizeof(State));
+    if (err != ESP_OK) {
+        Serial.printf("[ERR] send: %s\n", esp_err_to_name(err));
+        tx_done = true;            // don’t dead‑lock on failure
+    }
+}
 
 class Synchronizer {
 
@@ -65,31 +57,7 @@ public:
 	int deviceIndex; // 0 = master, 1-6 = ring index
 
 	Synchronizer() {
-		state.time			 = 0;
-		state.lastUpdate		 = 0;
-		state.updatesPerSecond = 50.0f;
-		state.frame			 = 0;
 
-		state.shader_index      = 0;
-		state.beat_intensity     = 0.0f;
-
-		state.current_angle_1    = 0.0f;
-		state.target_angle_1     = 90.0f;
-
-		state.current_angle_2    = 0.0f;
-		state.target_angle_2     = 90.0f;
-
-		state.current_angle_3    = 0.0f;
-		state.target_angle_3     = 90.0f;
-
-		state.current_angle_4    = 0.0f;
-		state.target_angle_4     = 90.0f;
-
-		state.current_angle_5    = 0.0f;
-		state.target_angle_5     = 90.0f;
-
-		state.current_angle_6    = 0.0f;
-		state.target_angle_6     = 90.0f;
 	}
 
 	void init() {
@@ -134,6 +102,10 @@ public:
 		}
 		esp_now_register_recv_cb(onDataRecv);
 
+		if (role == MASTER) {
+			esp_now_register_send_cb(onDataSent);   // register TX‑done callback
+		}
+
 		// Add peers.
 		if (role == MASTER) {
 			delay(1000); // Wait for ESP-NOW to stabilize on rings
@@ -148,6 +120,7 @@ public:
 					Serial.println(i);
 				}
 			}
+			state.isPaused = false;
 		}
 		else {
 			// ring adds master.
@@ -194,10 +167,10 @@ public:
 					case 5: state.current_angle_5 = receivedAngle; break;
 					case 6: state.current_angle_6 = receivedAngle; break;
 					}
-					Serial.print("Master updated angle from ring ");
-					Serial.print(senderIndex);
-					Serial.print(": ");
-					Serial.println(receivedAngle);
+					// Serial.print("Master updated angle from ring ");
+					// Serial.print(senderIndex);
+					// Serial.print(": ");
+					// Serial.println(receivedAngle);
 				}
 				else {
 					Serial.println("Received data from unknown ring.");
@@ -206,18 +179,21 @@ public:
 		}
 		else {
 			if (len == sizeof(State)) {
-				State masterState;
-				memcpy(&masterState, incomingData, sizeof(State));
-				float targetAngle = 0;
+				// Copy master‑sent state directly into the global state object
+				memcpy(&state, incomingData, sizeof(State));
+
+				// Pick out the new target angle for *this* ring
+				float targetAngle = 0.0f;
 				switch (deviceIndex) {
-				case 1: targetAngle = masterState.target_angle_1; break;
-				case 2: targetAngle = masterState.target_angle_2; break;
-				case 3: targetAngle = masterState.target_angle_3; break;
-				case 4: targetAngle = masterState.target_angle_4; break;
-				case 5: targetAngle = masterState.target_angle_5; break;
-				case 6: targetAngle = masterState.target_angle_6; break;
+					case 1: targetAngle = state.target_angle_1; break;
+					case 2: targetAngle = state.target_angle_2; break;
+					case 3: targetAngle = state.target_angle_3; break;
+					case 4: targetAngle = state.target_angle_4; break;
+					case 5: targetAngle = state.target_angle_5; break;
+					case 6: targetAngle = state.target_angle_6; break;
 				}
 				servoController.target_angle = targetAngle;
+
 				Serial.print("Ring ");
 				Serial.print(deviceIndex);
 				Serial.print(" received target angle: ");
@@ -229,36 +205,43 @@ public:
 	// Send data: master sends full state; ring sends back its servo angle.
 	void synchronize() {
 		if (role == MASTER) {
-			Serial.println("Master sending state to all rings.");
-			for (int i = 1; i < NUM_DEVICES; i++) {
-				esp_err_t result = esp_now_send(deviceList[i], (uint8_t*)&state, sizeof(State));
-				if (result == ESP_OK) {
-					Serial.print("Sent state to ring ");
-					Serial.println(i);
-				}
-				else {
-					Serial.print("Error sending to ring ");
-					Serial.println(i);
-				}
+			// Serial.println("Master sending state to all rings.");
+			// esp_err_t result = esp_now_send(BROADCAST_ALL, (uint8_t*)&state, sizeof(State));
+			// if (result != ESP_OK) {
+			// 	Serial.print("Error sending state from master:");
+			// 	Serial.println(esp_err_to_name(result));
+			// } else {
+			// 	// Print contents of state
+			// 	state.print();
+			// }
+
+
+
+			for (int i = 1; i < NUM_DEVICES; ++i) {
+				sendStateToRing(deviceList[i], state);
 			}
 
-			Serial.println("\n[DEBUG] Master sending state:");
-			Serial.printf("Shader: %d | Beat: %.2f\n", state.shader_index, state.beat_intensity);
-			for (int i = 1; i <= 6; ++i) {
-				float cur = 0, tgt = 0;
-				switch (i) {
-					case 1: cur = state.current_angle_1; tgt = state.target_angle_1; break;
-					case 2: cur = state.current_angle_2; tgt = state.target_angle_2; break;
-					case 3: cur = state.current_angle_3; tgt = state.target_angle_3; break;
-					case 4: cur = state.current_angle_4; tgt = state.target_angle_4; break;
-					case 5: cur = state.current_angle_5; tgt = state.target_angle_5; break;
-					case 6: cur = state.current_angle_6; tgt = state.target_angle_6; break;
-				}
-				Serial.printf("Ring %d  cur: %.1f°  tgt: %.1f°\n", i, cur, tgt);
-			}
+			// for (int i = 1; i < NUM_DEVICES; i++) {
+			// 	delay(10);
+			// 	esp_err_t result = esp_now_send(deviceList[i], reinterpret_cast<uint8_t*>(&state), sizeof(State));
+			// 	if (result == ESP_OK) {
+			// 		Serial.print("Sent state to ring ");
+			// 		Serial.println(i);
+			// 	}
+			// 	else {
+			// 		Serial.print("Error sending to ring ");
+			// 		Serial.print(i);
+			// 		Serial.print(": ");
+			// 		Serial.println(esp_err_to_name(result));
+			// 	}
+			// }
+			state.print();
 
 		}
 		else {
+
+			
+
 			float currentAngle = servoController.current_angle;
 			Serial.print("[DEBUG] Ring ");
 			Serial.print(deviceIndex);
@@ -271,6 +254,9 @@ public:
 			else {
 				Serial.println("Error sending angle.");
 			}
+			state.print();
+
+
 		}
 	}
 

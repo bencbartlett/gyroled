@@ -23,13 +23,14 @@
 
 #define LED_COUNT       	 	130
 
-int frame = 0;
-float updatesPerSecond = 50.0;
+// int frame = 0;
+// float updatesPerSecond = 50.0;
 
 const float alpha_short = 1.0 / (50.0 * 1.0); // roughly 1 seconds
-unsigned long lastUpdate = 0;
+// unsigned long lastUpdate = 0;
 
-int brightness = 255;
+State state;
+
 Adafruit_NeoPixel strip1(LED_COUNT, LED_PIN_1, NEO_GRB + NEO_KHZ800);
 Adafruit_NeoPixel strip2(LED_COUNT, LED_PIN_2, NEO_GRB + NEO_KHZ800);
 Adafruit_NeoPixel strip3(LED_COUNT, LED_PIN_3, NEO_GRB + NEO_KHZ800);
@@ -43,10 +44,7 @@ ServoManager servoManager;
 ServoController servoController;
 Synchronizer synchronizer;
 TrajectoryPlanner trajectoryPlanner;
-State state;
 
-// float spectrogram[NUM_BANDS] = { };
-// float frequencies[SAMPLES / 2] = { };
 
 
 void setup() {
@@ -64,7 +62,7 @@ void setup() {
 
 
 	// servoManager.setupServos();
-	shaderManager.setupLedStrips(brightness);
+	shaderManager.setupLedStrips(state.brightness);
 	servoController.setupServo();
 
 	Synchronizer::instance = &synchronizer;
@@ -73,7 +71,7 @@ void setup() {
 
 	if (synchronizer.role == MASTER) {
 		// setupAsyncSampling();
-		setupBluetooth();
+		// setupBluetooth();
 	}
 	
 	
@@ -94,30 +92,28 @@ void loop() {
 
     // On the master node, step the trajectory forward at 10 RPM
 	if (synchronizer.role == MASTER) {
-		unsigned long now = millis();
-    	float dtTraj = (lastUpdate == 0) ? (1.0f / updatesPerSecond) : ((now - lastUpdate) / 1000.0f);
-		trajectoryPlanner.update(state, dtTraj);
+		trajectoryPlanner.update(state);
 	}
 
-	frame++;
+	state.frame++;
+	state.time = millis();
 
-	if (frame % 30 == 0) {
-		shaderManager.setBrightness(brightness);
+	if (state.frame % 30 == 0) {
+		shaderManager.setBrightness(state.brightness);
 	}
 
 
 	float beatHeuristic = 0.0;
 	if (synchronizer.role == MASTER) {
-		// computeSpectrogram(spectrogram);
-		// doFFT(frequencies);
-		beatHeuristic = computeBeatHeuristic();
+		// beatHeuristic = computeBeatHeuristic();
 	}
 
+	if (synchronizer.role == RING) {
+		// servoManager.runServos();
+		servoController.runServo();
+		shaderManager.run(state.frame, beatHeuristic);
+	}
 
-	// servoManager.runServos();
-	servoController.runServo();
-
-	shaderManager.run(frame, beatHeuristic);
 
 	#if OUTPUT_TO_VISUALIZER
 		String foo = "[SPECTROGRAM]:";
@@ -135,7 +131,7 @@ void loop() {
 
 	#if PRINT_SUMMARY
 		Serial.print("Updates per second: ");
-		Serial.print(updatesPerSecond);
+		Serial.print(state.updatesPerSecond);
 		Serial.print("  |  Beat heuristic: ");
 		Serial.println(beatHeuristic);
 		// Serial.print("Active shader: ");
@@ -151,8 +147,7 @@ void loop() {
 	#endif // BLUETOOTH_DEBUG_MODE
 
 
-	float updatesPerSecondImmediate = 1000.0 / float(millis() - lastUpdate);
-	lastUpdate = millis();
-
-	updatesPerSecond = alpha_short * updatesPerSecondImmediate + (1.0 - alpha_short) * updatesPerSecond;
+	float updatesPerSecondImmediate = 1000.0 / float(millis() - state.lastUpdate);
+	state.lastUpdate = millis();
+	state.updatesPerSecond = alpha_short * updatesPerSecondImmediate + (1.0 - alpha_short) * state.updatesPerSecond;
 }
