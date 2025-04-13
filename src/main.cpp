@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <Adafruit_NeoPixel.h>
 
+#include "state.hpp"
 #include "fft.h"
 #include "beatdetection.h"
 #include "bluetooth.h"

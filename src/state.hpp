@@ -23,23 +23,23 @@ struct State {
     float beat_intensity  = 0.0f;
 
     // Per‑ring telemetry
-    float current_angle_1 = 0.0f;
     float target_angle_1  = 0.0f;
+	float target_angular_velocity_1 = 0.0f;
 
-    float current_angle_2 = 0.0f;
     float target_angle_2  = 0.0f;
+	float target_angular_velocity_2 = 0.0f;
 
-    float current_angle_3 = 0.0f;
     float target_angle_3  = 0.0f;
+	float target_angular_velocity_3 = 0.0f;
 
-    float current_angle_4 = 0.0f;
     float target_angle_4  = 0.0f;
+	float target_angular_velocity_4 = 0.0f;
 
-    float current_angle_5 = 0.0f;
     float target_angle_5  = 0.0f;
+	float target_angular_velocity_5 = 0.0f;
 
-    float current_angle_6 = 0.0f;
     float target_angle_6  = 0.0f;
+	float target_angular_velocity_6 = 0.0f;
 
 	void print() const {
 		Serial.println(F("========== State =========="));
@@ -63,15 +63,14 @@ struct State {
 					  beat_intensity);
 	
 		// Per‑ring angles
-		Serial.println(F("\nRing   Current°   Target°"));
+		Serial.println(F("\nRing   Target°   ω (°/s)"));
 		Serial.println(F("----   --------   --------"));
-		Serial.printf("  1    %8.1f   %8.1f\n", current_angle_1, target_angle_1);
-		Serial.printf("  2    %8.1f   %8.1f\n", current_angle_2, target_angle_2);
-		Serial.printf("  3    %8.1f   %8.1f\n", current_angle_3, target_angle_3);
-		Serial.printf("  4    %8.1f   %8.1f\n", current_angle_4, target_angle_4);
-		Serial.printf("  5    %8.1f   %8.1f\n", current_angle_5, target_angle_5);
-		Serial.printf("  6    %8.1f   %8.1f\n", current_angle_6, target_angle_6);
-	
+		Serial.printf("  1    %8.1f   %8.1f\n", target_angle_1, target_angular_velocity_1);
+		Serial.printf("  2    %8.1f   %8.1f\n", target_angle_2, target_angular_velocity_2);
+		Serial.printf("  3    %8.1f   %8.1f\n", target_angle_3, target_angular_velocity_3);
+		Serial.printf("  4    %8.1f   %8.1f\n", target_angle_4, target_angular_velocity_4);
+		Serial.printf("  5    %8.1f   %8.1f\n", target_angle_5, target_angular_velocity_5);
+		Serial.printf("  6    %8.1f   %8.1f\n", target_angle_6, target_angular_velocity_6);	
 		Serial.println(F("===========================\n"));
 	}
 

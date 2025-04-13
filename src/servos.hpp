@@ -31,9 +31,24 @@ private:
 	float error = 0.0f;
 	float prev_error = 0.0f;
 
-public:
+	float curr_time = 0.0f;
+	float prev_time = -1.0f; // -1.0f to avoid division by zero on first run
 
+	/* ------------------ PD speed controller ------------------ */
+	// Proportional‑Derivative gains (tune as needed)
+	float Kp = 1.2f;   // tuned for 30 kg·cm servo & ring inertia
+	float Kd = 0.20f;  
+
+	float wrap360(float a) {
+		a = fmodf(a, 360.0f);
+		return (a < 0) ? a + 360.0f : a;
+	};
+
+public:
+	int   ringIndex        = 0;          // 1…6  (0 = master / unused)
+	unsigned long lastStateReceived = 0; // ms
 	float target_angle = 0.0;  // Target angle in degrees for this servo
+	float target_angular_velocity = 0.0; // Target angular velocity in degrees per second
 	float current_angle = 0.0;
 	// float current_rpm = 0.0;
 	// float target_rpm = 0.0;
@@ -55,24 +70,20 @@ public:
 	    if (state.isPaused) {
 	        servo.hold();
 	    } else {
-	        /* ------------------ PD speed controller ------------------ */
-	        // Proportional‑Derivative gains (tune as needed)
-	        constexpr float Kp = 1.2f;   // tuned for 30 kg·cm servo & ring inertia
-	        constexpr float Kd = 0.20f;  
+			/* --- predict where the master wants me *now* --- */
+			float dt = (millis() - lastStateReceived) / 1000.0f;   // seconds
+			float predicted = target_angle + target_angular_velocity * dt; // linear extrapolation
+			predicted = fmodf(predicted, 360.0f);
+			if (predicted < 0) predicted += 360.0f;
 
-			auto wrap360 = [](float a) {
-				a = fmodf(a, 360.0f);
-				return (a < 0) ? a + 360.0f : a;
-			};
-			
-	        // --- Position error ---			
-			error = wrap360(target_angle) - wrap360(current_angle);
+			float error = wrap360(predicted) - wrap360(current_angle);		
 			if (error >  180.0f) error -= 360.0f;
 			if (error < -180.0f) error += 360.0f;
 	
 	        /* ----- PD control with derivative of the wrapped error ----- */
-	        const float dt = 1.0f / state.updatesPerSecond;        // seconds between loops
-	        float dErr     = (error - prev_error) / dt;            // deg/s
+			curr_time = millis() / 1000.0f;
+			float dErr     = (error - prev_error) / (curr_time - prev_time);            // deg/s
+			prev_time = curr_time;
 	
 	        // --- PD control law using error and its derivative ---
 	        float command_deg_per_s = Kp * error + Kd * dErr;

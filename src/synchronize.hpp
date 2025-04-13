@@ -16,6 +16,8 @@ uint8_t deviceList[NUM_DEVICES][6] = {  // TODO: finish filling out this list
   {0x24, 0xEC, 0x4A, 0x00, 0x4E, 0xC0},  // ring 5
   {0x98, 0x3D, 0xAE, 0xE7, 0x92, 0x50}   // ring 6 (sphere)
 };
+unsigned long heartbeats[NUM_DEVICES] = {0};
+
 
 enum DeviceRole { MASTER, RING };
 
@@ -55,6 +57,8 @@ public:
 
 	DeviceRole role;
 	int deviceIndex; // 0 = master, 1-6 = ring index
+
+	float current_angles[6] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
 
 	Synchronizer() {
 
@@ -132,6 +136,8 @@ public:
 				Serial.println("Failed to add master peer");
 			}
 		}
+
+		servoController.ringIndex = deviceIndex;   // pass index to servo layer
 	}
 
 	// Static pointer for use in the static callback.
@@ -159,20 +165,9 @@ public:
 					}
 				}
 				if (senderIndex != -1) {
-					switch (senderIndex) {
-					case 1: state.current_angle_1 = receivedAngle; break;
-					case 2: state.current_angle_2 = receivedAngle; break;
-					case 3: state.current_angle_3 = receivedAngle; break;
-					case 4: state.current_angle_4 = receivedAngle; break;
-					case 5: state.current_angle_5 = receivedAngle; break;
-					case 6: state.current_angle_6 = receivedAngle; break;
-					}
-					// Serial.print("Master updated angle from ring ");
-					// Serial.print(senderIndex);
-					// Serial.print(": ");
-					// Serial.println(receivedAngle);
-				}
-				else {
+					current_angles[senderIndex - 1] = receivedAngle;
+					heartbeats[senderIndex] = millis(); // heard from ring
+				} else {
 					Serial.println("Received data from unknown ring.");
 				}
 			}
@@ -182,22 +177,39 @@ public:
 				// Copy master‑sent state directly into the global state object
 				memcpy(&state, incomingData, sizeof(State));
 
-				// Pick out the new target angle for *this* ring
-				float targetAngle = 0.0f;
-				switch (deviceIndex) {
-					case 1: targetAngle = state.target_angle_1; break;
-					case 2: targetAngle = state.target_angle_2; break;
-					case 3: targetAngle = state.target_angle_3; break;
-					case 4: targetAngle = state.target_angle_4; break;
-					case 5: targetAngle = state.target_angle_5; break;
-					case 6: targetAngle = state.target_angle_6; break;
-				}
-				servoController.target_angle = targetAngle;
+				servoController.lastStateReceived = millis();
+				heartbeats[0] = millis();                 // heard from master
 
-				Serial.print("Ring ");
-				Serial.print(deviceIndex);
-				Serial.print(" received target angle: ");
-				Serial.println(targetAngle);
+				// Pick out the new target angle for *this* ring
+				switch (deviceIndex) {
+					case 1: 
+						servoController.target_angle = state.target_angle_1;
+						servoController.target_angular_velocity = state.target_angular_velocity_1;
+						break;
+					case 2:
+						servoController.target_angle = state.target_angle_2;
+						servoController.target_angular_velocity = state.target_angular_velocity_2;
+						break;
+					case 3:
+						servoController.target_angle = state.target_angle_3;
+						servoController.target_angular_velocity = state.target_angular_velocity_3;
+						break;
+					case 4:
+						servoController.target_angle = state.target_angle_4;
+						servoController.target_angular_velocity = state.target_angular_velocity_4;
+						break;
+					case 5:
+						servoController.target_angle = state.target_angle_5;
+						servoController.target_angular_velocity = state.target_angular_velocity_5;
+						break;
+					case 6:
+						servoController.target_angle = state.target_angle_6;
+						servoController.target_angular_velocity = state.target_angular_velocity_6;
+						break;
+					default:
+						Serial.println("Unknown device index.");
+						return;
+				}
 			}
 		}
 	}
@@ -214,8 +226,6 @@ public:
 			// 	// Print contents of state
 			// 	state.print();
 			// }
-
-
 
 			for (int i = 1; i < NUM_DEVICES; ++i) {
 				sendStateToRing(deviceList[i], state);
@@ -239,27 +249,13 @@ public:
 
 		}
 		else {
-
-			
-
-			float currentAngle = servoController.current_angle;
-			Serial.print("[DEBUG] Ring ");
-			Serial.print(deviceIndex);
-			Serial.print(" sending current angle (deg): ");
-			Serial.println(currentAngle);
-			esp_err_t result = esp_now_send(deviceList[0], (uint8_t*)&currentAngle, sizeof(float));
-			if (result == ESP_OK) {
-				Serial.println("Sent angle to master.");
-			}
-			else {
+			esp_err_t result = esp_now_send(deviceList[0], (uint8_t*)&servoController.current_angle, sizeof(float));
+			if (result != ESP_OK) {
 				Serial.println("Error sending angle.");
 			}
 			state.print();
-
-
 		}
 	}
-
 };
 
 Synchronizer* Synchronizer::instance = nullptr;
