@@ -68,53 +68,67 @@ public:
 
 	void runServo() {
 	    if (state.isPaused) {
-	        servo.limp();
+	        servo.hold();
 	    } else {
+			#if USE_CUSTOM_PD_CONTROLLER
+			/* --- predict where the master wants me *now* --- */
+			float dt = (millis() - lastStateReceived) / 1000.0f;   // seconds
+			float predicted = wrap360(target_angle + target_angular_velocity * dt); // linear extrapolation
+			if (predicted < 0) predicted += 360.0f;
 
-			// float RPM = 6.0f;
-			// float DEGS_PER_SEC = RPM * 360.0f / 60.0f;
-			// int16_t speedCmd = static_cast<int16_t>(DEGS_PER_SEC * 10.0f);
-			int16_t speed = static_cast<int16_t>(target_angular_velocity);
-			servo.wheel(speed);
-
-			// /* --- predict where the master wants me *now* --- */
-			// float dt = (millis() - lastStateReceived) / 1000.0f;   // seconds
-			// float predicted = target_angle + target_angular_velocity * dt; // linear extrapolation
-			// predicted = fmodf(predicted, 360.0f);
-			// if (predicted < 0) predicted += 360.0f;
-
-			// float error = wrap360(predicted) - wrap360(current_angle);		
-			// if (error >  180.0f) error -= 360.0f;
-			// if (error < -180.0f) error += 360.0f;
+			float error = wrap360(predicted) - wrap360(current_angle);		
+			if (error >  180.0f) error -= 360.0f;
+			if (error < -180.0f) error += 360.0f;
 	
-	        // /* ----- PD control with derivative of the wrapped error ----- */
-			// curr_time = millis() / 1000.0f;
-			// float dErr     = (error - prev_error) / (curr_time - prev_time);            // deg/s
-			// prev_time = curr_time;
+	        /* ----- PD control with derivative of the wrapped error ----- */
+			curr_time = millis() / 1000.0f;
+			float dErr     = (error - prev_error) / (curr_time - prev_time);            // deg/s
+			prev_time = curr_time;
+			prev_error = error; 
 	
-	        // // --- PD control law using error and its derivative ---
-	        // float command_deg_per_s = Kp * error + Kd * dErr;
+	        // --- PD control law using error and its derivative ---
+	        float command_deg_per_s = Kp * error + Kd * dErr;
 	
-	        // // --- Convert to 1/10°/s for wheel() ---
-	        // int16_t speedCmd = static_cast<int16_t>(command_deg_per_s * 10.0f);
+	        // --- Convert to 1/10°/s for wheel() ---
+	        int16_t speedCmd = static_cast<int16_t>(command_deg_per_s * 10.0f);
 	
-	        // // Clamp to ±10 RPM  (≈ ±60 deg/s  →  ±600 × 1/10°/s)
+	        // Clamp to ±10 RPM  (≈ ±60 deg/s  →  ±600 × 1/10°/s)
 	        // const int16_t MAX_CMD = 600;
 	        // if (speedCmd >  MAX_CMD) speedCmd =  MAX_CMD;
 	        // if (speedCmd < -MAX_CMD) speedCmd = -MAX_CMD;
 	
-	        // servo.wheel(speedCmd);
+	        bool result = servo.wheel(speedCmd);
+			if (!result) {
+				Serial.println("Error sending command to servo.");
+			}
 
+			Serial.printf("Err: %6.1f°  dErr: %6.1f°/s  Cmd: %4d (1/10°/s)\n",
+						error, dErr, speedCmd);
+			#else
 
-	    #if SERVO_DEBUG_MODE
-	        Serial.printf("Err: %6.1f°  dErr: %6.1f°/s  Cmd: %4d (1/10°/s)\n",
-	                      error, dErr, speedCmd);
-	    #endif
+			// Use direct move commands to the servo and use the built in virtual position system
+			// instead of wrapping around 360 degrees
+			float dt = (millis() - lastStateReceived) / 1000.0f;   // seconds
+			float predicted = target_angle + target_angular_velocity * dt; // linear extrapolation
+			
+			float prev_angle = current_angle;
+
+			servo.moveRelative(static_cast<int16_t>(predicted * 10.0f)); // Move to the predicted position in 1/10° units
+
+			#endif
 	    }
-	
-	    // Refresh feedback for next loop
-	    current_angle = static_cast<float>(servo.getPosition()) / 10.0f;
-	    prev_error = error;           // save for next derivative calculation
+		current_angle = wrap360((servo.getPosition()) / 10.0f);
+
+		// Pretty print a table
+		Serial.println(F("\nRing   Target°   Currnt°   ω (°/s)"));
+		Serial.println(F("----   --------  --------   --------"));
+		Serial.printf("  1    %8.1f   %8.1f   %8.1f\n", state.target_angle_1, ringIndex == 1 ? current_angle : 0., state.target_angular_velocity_1);
+		Serial.printf("  2    %8.1f   %8.1f   %8.1f\n", state.target_angle_2, ringIndex == 2 ? current_angle : 0., state.target_angular_velocity_2);
+		Serial.printf("  3    %8.1f   %8.1f   %8.1f\n", state.target_angle_3, ringIndex == 3 ? current_angle : 0., state.target_angular_velocity_3);
+		Serial.printf("  4    %8.1f   %8.1f   %8.1f\n", state.target_angle_4, ringIndex == 4 ? current_angle : 0., state.target_angular_velocity_4);
+		Serial.printf("  5    %8.1f   %8.1f   %8.1f\n", state.target_angle_5, ringIndex == 5 ? current_angle : 0., state.target_angular_velocity_5);
+		Serial.printf("  6    %8.1f   %8.1f   %8.1f\n", state.target_angle_6, ringIndex == 6 ? current_angle : 0., state.target_angular_velocity_6);	
+		Serial.println(F("===========================\n"));
 	}
 
 };
