@@ -96,6 +96,10 @@ void loop() {
 		trajectoryPlanner.update(state);
 	}
 
+	if (synchronizer.deviceIndex == 5) {
+		state.brightness=255;
+	}
+
 	state.frame++;
 	state.time = millis();
 

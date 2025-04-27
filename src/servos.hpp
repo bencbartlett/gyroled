@@ -59,7 +59,7 @@ public:
 		// Wait for the LSS to boot
 		delay(1000);
 
-		// servo.setAngularStiffness(0);
+		servo.setAngularStiffness(0);
 		// servo.setAngularHoldingStiffness(0);
 		// servo.setAngularAcceleration(15);
 		// servo.setAngularDeceleration(15);
@@ -68,35 +68,42 @@ public:
 
 	void runServo() {
 	    if (state.isPaused) {
-	        servo.hold();
+	        servo.limp();
 	    } else {
-			/* --- predict where the master wants me *now* --- */
-			float dt = (millis() - lastStateReceived) / 1000.0f;   // seconds
-			float predicted = target_angle + target_angular_velocity * dt; // linear extrapolation
-			predicted = fmodf(predicted, 360.0f);
-			if (predicted < 0) predicted += 360.0f;
 
-			float error = wrap360(predicted) - wrap360(current_angle);		
-			if (error >  180.0f) error -= 360.0f;
-			if (error < -180.0f) error += 360.0f;
+			// float RPM = 6.0f;
+			// float DEGS_PER_SEC = RPM * 360.0f / 60.0f;
+			// int16_t speedCmd = static_cast<int16_t>(DEGS_PER_SEC * 10.0f);
+			int16_t speed = static_cast<int16_t>(target_angular_velocity);
+			servo.wheel(speed);
+
+			// /* --- predict where the master wants me *now* --- */
+			// float dt = (millis() - lastStateReceived) / 1000.0f;   // seconds
+			// float predicted = target_angle + target_angular_velocity * dt; // linear extrapolation
+			// predicted = fmodf(predicted, 360.0f);
+			// if (predicted < 0) predicted += 360.0f;
+
+			// float error = wrap360(predicted) - wrap360(current_angle);		
+			// if (error >  180.0f) error -= 360.0f;
+			// if (error < -180.0f) error += 360.0f;
 	
-	        /* ----- PD control with derivative of the wrapped error ----- */
-			curr_time = millis() / 1000.0f;
-			float dErr     = (error - prev_error) / (curr_time - prev_time);            // deg/s
-			prev_time = curr_time;
+	        // /* ----- PD control with derivative of the wrapped error ----- */
+			// curr_time = millis() / 1000.0f;
+			// float dErr     = (error - prev_error) / (curr_time - prev_time);            // deg/s
+			// prev_time = curr_time;
 	
-	        // --- PD control law using error and its derivative ---
-	        float command_deg_per_s = Kp * error + Kd * dErr;
+	        // // --- PD control law using error and its derivative ---
+	        // float command_deg_per_s = Kp * error + Kd * dErr;
 	
-	        // --- Convert to 1/10°/s for wheel() ---
-	        int16_t speedCmd = static_cast<int16_t>(command_deg_per_s * 10.0f);
+	        // // --- Convert to 1/10°/s for wheel() ---
+	        // int16_t speedCmd = static_cast<int16_t>(command_deg_per_s * 10.0f);
 	
-	        // Clamp to ±10 RPM  (≈ ±60 deg/s  →  ±600 × 1/10°/s)
-	        const int16_t MAX_CMD = 600;
-	        if (speedCmd >  MAX_CMD) speedCmd =  MAX_CMD;
-	        if (speedCmd < -MAX_CMD) speedCmd = -MAX_CMD;
+	        // // Clamp to ±10 RPM  (≈ ±60 deg/s  →  ±600 × 1/10°/s)
+	        // const int16_t MAX_CMD = 600;
+	        // if (speedCmd >  MAX_CMD) speedCmd =  MAX_CMD;
+	        // if (speedCmd < -MAX_CMD) speedCmd = -MAX_CMD;
 	
-	        servo.wheel(speedCmd);
+	        // servo.wheel(speedCmd);
 
 
 	    #if SERVO_DEBUG_MODE
