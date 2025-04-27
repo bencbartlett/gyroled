@@ -27,24 +27,30 @@
 // int frame = 0;
 // float updatesPerSecond = 50.0;
 
+int led_count_this_ring = 0; // this is populated in ShaderManager(); can't be done statically because of import ordering
+int led_count_this_ring_inside = 0;
+
 const float alpha_short = 1.0 / (50.0 * 1.0); // roughly 1 seconds
 // unsigned long lastUpdate = 0;
 
+int deviceIndex = -1;
+
 State state;
 
-Adafruit_NeoPixel strip1(LED_COUNT, LED_PIN_1, NEO_GRB + NEO_KHZ800);
-Adafruit_NeoPixel strip2(LED_COUNT, LED_PIN_2, NEO_GRB + NEO_KHZ800);
-Adafruit_NeoPixel strip3(LED_COUNT, LED_PIN_3, NEO_GRB + NEO_KHZ800);
+extern const int MAX_LED_PER_RING;
 
-
-LedColor ledColors[LED_COUNT];
-
-ShaderManager shaderManager(strip1, strip2, strip3, ledColors);
+Adafruit_NeoPixel strip1(MAX_LED_PER_RING, LED_PIN_1, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel strip2(MAX_LED_PER_RING, LED_PIN_2, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel strip3(MAX_LED_PER_RING, LED_PIN_3, NEO_GRB + NEO_KHZ800);
 
 ServoManager servoManager;
 ServoController servoController;
 Synchronizer synchronizer;
 TrajectoryPlanner trajectoryPlanner;
+
+LedColor ledColors[MAX_LED_PER_RING];
+ShaderManager shaderManager(strip1, strip2, strip3, ledColors);
+
 
 
 
@@ -104,6 +110,10 @@ void loop() {
 	state.time = millis();
 
 	if (state.frame % 30 == 0) {
+		uint8_t brightness = state.brightness;
+		if (deviceIndex == 6)	{
+			brightness = 255; // sphere always at max brightness
+		}
 		shaderManager.setBrightness(state.brightness);
 	}
 

@@ -106,16 +106,22 @@ public:
 						error, dErr, speedCmd);
 			#else
 
-			// Use direct move commands to the servo and use the built in virtual position system
-			// instead of wrapping around 360 degrees
-			float dt = (millis() - lastStateReceived) / 1000.0f;   // seconds
-			float predicted = target_angle + target_angular_velocity * dt; // linear extrapolation
+			// // Use direct move commands to the servo and use the built in virtual position system
+			// // instead of wrapping around 360 degrees
+			// float dt = (millis() - lastStateReceived) / 1000.0f;   // seconds
+			// float predicted = target_angle + target_angular_velocity * dt; // linear extrapolation
 			
-			float prev_angle = current_angle;
+			// float prev_angle = current_angle;
 
-			servo.moveRelative(static_cast<int16_t>(predicted * 10.0f)); // Move to the predicted position in 1/10° units
+			// servo.moveRelative(static_cast<int16_t>(predicted * 10.0f)); // Move to the predicted position in 1/10° units
+			
+			// Run at 10rpm 
+			float RPM = 8.0f;
+			float DEGS_PER_SEC = RPM * 360.0f / 60.0f;
+			servo.wheel(10 * DEGS_PER_SEC);
 
 			#endif
+
 	    }
 		current_angle = wrap360((servo.getPosition()) / 10.0f);
 
