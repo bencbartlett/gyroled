@@ -18,9 +18,9 @@
 #define SERVO_RX_PIN 5 //4
 #define SERVO_TX_PIN  6//5
 
-#define LED_PIN_1         		44 //7  // outside edge of ring, forward side of servo (away from input cable)
-#define LED_PIN_2         		7 //8  // outside edge of ring, forward side of servo (toward input cable)
-#define LED_PIN_3         		43 //6 // inside edge of ring
+#define LED_PIN_1         		7  // outside edge of ring, forward side of servo (away from input cable)
+#define LED_PIN_2         		44 // outside edge of ring, forward side of servo (toward input cable)
+#define LED_PIN_3         		43 // inside edge of ring
 
 // int frame = 0;
 // float updatesPerSecond = 50.0;

@@ -7,7 +7,7 @@
 #define NUM_RINGS 6
 
 const int led_counts_outside[NUM_RINGS] = {
-	54,
+	56,
 	40,
 	40,
 	40,
@@ -24,7 +24,7 @@ const int led_counts_inside[NUM_RINGS] = {
 };
 
 // Wastes a few bytes of ram but makes import ordering much nicer
-const int MAX_LED_PER_RING = 54; // led_counts_outside[0] > led_counts_inside[0] ? led_counts_outside[0] : led_counts_inside[0];
+const int MAX_LED_PER_RING = 56; // led_counts_outside[0] > led_counts_inside[0] ? led_counts_outside[0] : led_counts_inside[0];
 
 extern int led_count_this_ring; // this is populated in ShaderManager(); can't be done statically because of import ordering
 extern int led_count_this_ring_inside;
