@@ -119,6 +119,12 @@ struct LedColor {
 		hue = hue % 360;
 		return LedColor(Adafruit_NeoPixel::gamma32(Adafruit_NeoPixel::ColorHSV(hue * 182)));  // Multiply by 182 to convert 0-360 to 0-65535
 	}
+
+	static LedColor hueInterpolateSine(float t, int startHue, int endHue) {
+		float sinVal = 0.5 + 0.5 * sin(t);
+		uint16_t hue = map(int(sinVal * 65536) % 65536, 0, 65536, startHue, endHue);
+		return LedColor(Adafruit_NeoPixel::gamma32(Adafruit_NeoPixel::ColorHSV(hue * 182)));  // Multiply by 182 to convert 0-360 to 0-65535
+	}
 };
 
 /**
@@ -239,20 +245,7 @@ public:
 	}
 };
 
-class LoopyRainbow : public Shader {
-private:
-	int cycleSpeed = 1000;
-	int fadeVal = 100;
-	int fadeMax = 100;
-public:
-	LoopyRainbow(LedColor(&colors)[LED_COUNT_TOTAL]) : Shader(colors, "Loopy Rainbow") {}
-	void update(int frame) override {
-		for (int i = 0; i < LED_COUNT_TOTAL; i++) {
-			uint32_t pixelHue = frame * cycleSpeed + (i * 65536L / LED_COUNT_TOTAL);
-			ledColors[i] = LedColor(Adafruit_NeoPixel::gamma32(Adafruit_NeoPixel::ColorHSV(pixelHue, 255, 255 * fadeVal / fadeMax)));
-		}
-	}
-};
+
 
 class LoopyRainbow2 : public Shader {
 private:
@@ -280,7 +273,20 @@ public:
 };
 */
 
-
+class LoopyRainbow : public Shader {
+private:
+	int cycleSpeed = 200;
+	int fadeVal = 100;
+	int fadeMax = 100;
+public:
+	LoopyRainbow(LedColor(&colors)[MAX_LED_PER_RING], int ledCount) : Shader(colors, "Loopy Rainbow", ledCount) {}
+	void update(int frame) override {
+		for (int i = 0; i < ledCount; i++) {
+			uint32_t pixelHue = frame * cycleSpeed + (i * 65536L / ledCount);
+			ledColors[i] = LedColor(Adafruit_NeoPixel::gamma32(Adafruit_NeoPixel::ColorHSV(pixelHue, 255, 255 * fadeVal / fadeMax)));
+		}
+	}
+};
 
 class Inferno : public Shader {
 private:
@@ -307,22 +313,10 @@ public:
 
 	void update(int frame) override {
 		for (int i = 0; i < ledCount; i++) {
-			float t = float(2 * i) / float(ledCount) + float(frame) / float(cycleTime);
-			ledColors[i] = LedColor::hueInterpolateZigZag(t, ringHueRanges[deviceIndex].startHue, ringHueRanges[deviceIndex].endHue);
-			// ledColors[i] = hueInterpolate(i, ringHueRanges[deviceIndex], frame, ledCount);
-			// ledColors[i] = LedColor::interpolateZigZag(ledColors[i], ledColors[i], float(i) / ledCount);
+			float t = float(periods * i) / float(ledCount) + float(frame) / float(cycleTime);
+			// ledColors[i] = LedColor::hueInterpolateZigZag(t, ringHueRanges[deviceIndex].startHue, ringHueRanges[deviceIndex].endHue);
+			ledColors[i] = LedColor::hueInterpolateSine(t, ringHueRanges[deviceIndex].startHue, ringHueRanges[deviceIndex].endHue);
 		}
-	}
-
-	LedColor sineHueInterpolate(int ledIndex, HueRange hueRange, int frame, int totalLeds) {
-		float sinVal = 0.5 + 0.5 * sin(
-			2.0 * PI * (
-				(float(periods) * float(ledIndex) / float(totalLeds))
-				+ (float(frame) / cycleTime)
-			)
-		);
-		uint16_t hue = map(int(sinVal * 65536) % 65536, 0, 65536, hueRange.startHue, hueRange.endHue);
-		return LedColor(Adafruit_NeoPixel::gamma32(Adafruit_NeoPixel::ColorHSV(hue * 182)));  // Multiply by 182 to convert 0-360 to 0-65535
 	}
 };
 
@@ -415,62 +409,41 @@ public:
 // 	}
 // };
 
-// class AquaColors : public Shader {
-// private:
-// 	int cycleTime = 30;  // Determines how quickly the colors cycle
-// 	int periods = 3;
+class AquaColors : public Shader {
+private:
+	int cycleTime = 30;  // Determines how quickly the colors cycle
+	int periods = 3;
+	struct HueRange {
+		uint16_t startHue;
+		uint16_t endHue;
+	};
 
-// 	// Define hue ranges for each ring. Values are in degrees (0-360) on the color wheel, then converted to 0-65535.
-// 	struct HueRange {
-// 		uint16_t startHue;
-// 		uint16_t endHue;
-// 	};
+	HueRange ringHueRanges[NUM_RINGS] = {
+		{170, 200},  // Ring 1: Blues to Purples (170 is light blue, 270 is violet)
+		{180, 210},
+		{190, 220},  // Ring 2: Cyan Colors (180 is cyan, 210 is deeper cyan)
+		{200, 230},
+		{150, 180},  // Ring 3: Turquoise Colors (150 is soft turquoise, 180 is cyan)
+		{145, 175}
+	};
 
-// 	HueRange ringHueRanges[3] = {
-// 		{170, 200},  // Ring 1: Blues to Purples (170 is light blue, 270 is violet)
-// 		{190, 220},  // Ring 2: Cyan Colors (180 is cyan, 210 is deeper cyan)
-// 		{150, 180}   // Ring 3: Turquoise Colors (150 is soft turquoise, 180 is cyan)
-// 	};
+public:
+	AquaColors(LedColor(&colors)[MAX_LED_PER_RING], int ledCount) : Shader(colors, "Aqua Colors", ledCount) {}
 
-// public:
-// 	AquaColors(LedColor(&colors)[LED_COUNT_TOTAL]) : Shader(colors, "Aqua Colors") {}
-
-// 	void update(int frame) override {
-// 		for (int i = 0; i < LED_COUNT_RING_1; i++) {
-// 			ledColors[i] = hueInterpolate(i, ringHueRanges[0], frame, LED_COUNT_RING_1);
-// 		}
-// 		for (int i = 0; i < LED_COUNT_RING_2; i++) {
-// 			ledColors[i + LED_COUNT_RING_1] = hueInterpolate(i, ringHueRanges[1], frame, LED_COUNT_RING_2);
-// 		}
-// 		for (int i = 0; i < LED_COUNT_RING_3; i++) {
-// 			ledColors[i + LED_COUNT_RING_1 + LED_COUNT_RING_2] = hueInterpolate(i, ringHueRanges[2], frame, LED_COUNT_RING_3);
-// 		}
-// 	}
-
-// 	// LedColor getColorForLed(int ledIndex, HueRange hueRange, int frame, int totalLeds) {
-// 	// 	uint16_t hue = map(int((float(frame) / cycleTime + .5 * sin(2 * PI * periods * float(ledIndex) / totalLeds)) * 65536) % 65536,
-// 	// 		0, 65536, hueRange.startHue, hueRange.endHue);
-// 	// 	return LedColor(Adafruit_NeoPixel::gamma32(Adafruit_NeoPixel::ColorHSV(hue * 182)));  // Multiply by 182 to convert 0-360 to 0-65535
-// 	// }
-
-// 	LedColor hueInterpolate(int ledIndex, HueRange hueRange, int frame, int totalLeds) {
-// 		float sinVal = 0.5 + 0.5 * sin(
-// 			2.0 * PI * (
-// 				(float(periods) * float(ledIndex) / float(totalLeds))
-// 				+ (float(frame) / cycleTime)
-// 				)
-// 		);
-// 		uint16_t hue = map(int(sinVal * 65536) % 65536, 0, 65536, hueRange.startHue, hueRange.endHue);
-// 		return LedColor(Adafruit_NeoPixel::gamma32(Adafruit_NeoPixel::ColorHSV(hue * 182)));  // Multiply by 182 to convert 0-360 to 0-65535
-// 	}
-// };
+	void update(int frame) override {
+		for (int i = 0; i < ledCount; i++) {
+			float t = float(periods * i) / float(ledCount) + float(frame) / float(cycleTime);
+			ledColors[i] = LedColor::hueInterpolateSine(t, ringHueRanges[deviceIndex].startHue, ringHueRanges[deviceIndex].endHue);
+		}
+	}
+};
 
 
 class RedSineWave : public Shader {
 private:
 	int periodsPerRing = 3;
 	int p = 2;
-	float speed = 0.015;
+	float speed = 0.002;
 public:
 	RedSineWave(LedColor(&colors)[MAX_LED_PER_RING], int ledCount) : Shader(colors, "Red Sine Waves", ledCount) {}
 	void update(int frame) override {
@@ -482,33 +455,25 @@ public:
 };
 
 
-// class RedSquareWave : public Shader {
-// private:
-// 	int periodsPerRing = 3;
-// 	int p = 4;
-// 	float speed = 0.01;
-// public:
-// 	RedSquareWave(LedColor(&colors)[LED_COUNT_TOTAL]) : Shader(colors, "Red Square Wave") {}
-// 	void update(int frame) override {
-// 		for (int i = 0; i < LED_COUNT_RING_1; i++) {
-// 			float theta = 2 * PI * (float(i) / LED_COUNT_RING_1 + frame * speed);
-// 			ledColors[i] = squareLoops(LedColor(255, 0, 0, 0), theta * periodsPerRing);
-// 		}
-// 		for (int i = 0; i < LED_COUNT_RING_2; i++) {
-// 			float theta = 2 * PI * (float(i) / LED_COUNT_RING_2 + frame * speed);
-// 			ledColors[i + LED_COUNT_RING_1] = squareLoops(LedColor(255, 15, 0, 0), theta * periodsPerRing);
-// 		}
-// 		for (int i = 0; i < LED_COUNT_RING_3; i++) {
-// 			float theta = 2 * PI * (float(i) / LED_COUNT_RING_3 + frame * speed);
-// 			ledColors[i + LED_COUNT_RING_1 + LED_COUNT_RING_2] = squareLoops(LedColor(255, 30, 0, 0), theta * periodsPerRing);
-// 		}
-// 	}
-// };
+class RedSquareWave : public Shader {
+private:
+	int periodsPerRing = 3;
+	int p = 4;
+	float speed = 0.01;
+public:
+	RedSquareWave(LedColor(&colors)[MAX_LED_PER_RING], int ledCount) : Shader(colors, "Red Square Wave", ledCount) {}
+	void update(int frame) override {
+		for (int i = 0; i < ledCount; i++) {
+			float theta = 2 * PI * (float(i) / ledCount + frame * speed);
+			ledColors[i] = squareLoops(LedColor(255, 0, 0, 0), theta * periodsPerRing);
+		}
+	}
+};
 
 
 class Bisexual : public Shader {
 private:
-	float speed = 0.1;
+	float speed = 0.01;
 
 	int startHue = 200;
 	int endHue = 340;
@@ -914,6 +879,7 @@ public:
 	bool hasPhoneEverConnected = false;
 	bool useAnimation = true;
 	bool animationHasBeenChanged = false;
+	bool useSameShaderForInsideAndOutside = true;
 
 	std::map<String, Shader*> shaders;
 	std::map<String, AccentShader*> accentShaders;
@@ -967,36 +933,36 @@ public:
 		std::vector<Shader*> shaderList = {
 			// good ones
 			// new InfernoTest(ledColorsOutside, led_count_this_ring),
+			new Bisexual(ledColorsOutside, led_count_this_ring),
 			new Inferno(ledColorsOutside, led_count_this_ring),
 			new ColorCounter(ledColorsOutside, led_count_this_ring),
 			new RedSineWave(ledColorsOutside, led_count_this_ring),
-			new Bisexual(ledColorsOutside, led_count_this_ring),
-			// new AquaColors(ledColorsOutside, led_count_this_ring),
+			new AquaColors(ledColorsOutside, led_count_this_ring),
 			// new BluePurple(ledColorsOutside, led_count_this_ring),
-			// new LoopyRainbow(ledColorsOutside, led_count_this_ring),
+			new LoopyRainbow(ledColorsOutside, led_count_this_ring),
 			// new LoopyRainbow2(ledColorsOutside, led_count_this_ring),
 			// // shitty ones
 			// new WhiteOverRainbow(ledColorsOutside, led_count_this_ring),
 			// new Inferno2(ledColorsOutside, led_count_this_ring),
-			// new RedSquareWave(ledColorsOutside, led_count_this_ring),
+			new RedSquareWave(ledColorsOutside, led_count_this_ring),
 			// Add more shaders here
 		};
 
 		std::vector<Shader*> shaderListInside = {
+			new Bisexual(ledColorsInside, led_count_this_ring_inside),
 			new Inferno(ledColorsInside, led_count_this_ring_inside),
 			new ColorCounter(ledColorsInside, led_count_this_ring_inside),
 			// good ones
 			// new InfernoTest(ledColorsInside, led_count_this_ring_inside),
 			new RedSineWave(ledColorsInside, led_count_this_ring_inside),
-			// new AquaColors(ledColorsInside, led_count_this_ring_inside),
+			new AquaColors(ledColorsInside, led_count_this_ring_inside),
 			// new BluePurple(ledColorsInside, led_count_this_ring_inside),
-			// new LoopyRainbow(ledColorsInside, led_count_this_ring_inside),
+			new LoopyRainbow(ledColorsInside, led_count_this_ring_inside),
 			// new LoopyRainbow2(ledColorsInside, led_count_this_ring_inside),
-			new Bisexual(ledColorsInside, led_count_this_ring_inside),
 			// // shitty ones
 			// new WhiteOverRainbow(ledColorsInside, led_count_this_ring_inside),
 			// new Inferno2(ledColorsInside, led_count_this_ring_inside),
-			// new RedSquareWave(ledColorsInside, led_count_this_ring_inside),
+			new RedSquareWave(ledColorsInside, led_count_this_ring_inside),
 			// Add more shaders here
 		};
 
@@ -1087,7 +1053,21 @@ public:
 		if (it != shaders.end()) {
 			activeShader = it->second;
 			animationHasBeenChanged = true;
+			if (useSameShaderForInsideAndOutside) {
+				setActiveShaderInside(shaderName);
+			}
 			// lastShaderChangeMs = millis();
+		}
+		else {
+			Serial.println("Shader not found");
+		}
+	}
+
+	void setActiveShaderInside(const String& shaderName) {
+		auto it = shadersInside.find(shaderName);
+		if (it != shadersInside.end()) {
+			activeShaderInside = it->second;
+			animationHasBeenChanged = true;
 		}
 		else {
 			Serial.println("Shader not found");
@@ -1098,6 +1078,20 @@ public:
 		auto it = accentShaders.find(shaderName);
 		if (it != accentShaders.end()) {
 			activeAccentShader = it->second;
+			animationHasBeenChanged = true;
+			if (useSameShaderForInsideAndOutside) {
+				setActiveAccentShaderInside(shaderName);
+			}
+		}
+		else {
+			Serial.println("Accent Shader not found");
+		}
+	}
+
+	void setActiveAccentShaderInside(const String& shaderName) {
+		auto it = accentShadersInside.find(shaderName);
+		if (it != accentShadersInside.end()) {
+			activeAccentShaderInside = it->second;
 			animationHasBeenChanged = true;
 		}
 		else {

@@ -76,7 +76,7 @@ void setup() {
 
 	servoController.setupServo();
 
-	setupBluetooth();
+	setupBluetooth(); // TODO: this is for debug and should normally only run on master controller
 
 	if (synchronizer.role == MASTER) {
 		// setupAsyncSampling();
