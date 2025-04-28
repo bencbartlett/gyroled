@@ -6,15 +6,16 @@
 
 // Hardcoded list of device MAC addresses (index 0: master; indexes 1-6: rings)
 #define NUM_DEVICES 7
+#define MASTER_INDEX 6
 uint8_t BROADCAST_ALL[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 uint8_t deviceList[NUM_DEVICES][6] = {  // TODO: finish filling out this list
-  {0xD8, 0x3B, 0xDA, 0x45, 0xCE, 0x4C},  // master
   {0x24, 0x58, 0x7C, 0xE4, 0x1A, 0x50},  // ring 1 (outer ring)
   {0x98, 0x3D, 0xAE, 0xEA, 0x0D, 0xC8},  // ring 2
   {0x98, 0x3D, 0xAE, 0xE5, 0xEF, 0xF4},  // ring 3
   {0x98, 0x3D, 0xAE, 0xEA, 0x23, 0x74},  // ring 4
   {0x24, 0xEC, 0x4A, 0x00, 0x4E, 0xC0},  // ring 5
-  {0x98, 0x3D, 0xAE, 0xE7, 0x92, 0x50}   // ring 6 (sphere)
+  {0x98, 0x3D, 0xAE, 0xE7, 0x92, 0x50},  // ring 6 (sphere)
+  {0xD8, 0x3B, 0xDA, 0x45, 0xCE, 0x4C}   // master
 };
 unsigned long heartbeats[NUM_DEVICES] = {0};
 
@@ -56,7 +57,6 @@ class Synchronizer {
 public:
 
 	DeviceRole role;
-	// int deviceIndex; // 0 = master, 1-6 = ring index
 
 	float current_angles[6] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
 
@@ -93,7 +93,7 @@ public:
 		else {
 			Serial.print("Device index: ");
 			Serial.println(deviceIndex);
-			role = (deviceIndex == 0) ? MASTER : RING;
+			role = (deviceIndex == MASTER_INDEX) ? MASTER : RING;
 		}
 		Serial.print("Role: ");
 		Serial.println(role == MASTER ? "MASTER" : "RING");
@@ -115,7 +115,8 @@ public:
 		if (role == MASTER) {
 			delay(1000); // Wait for ESP-NOW to stabilize on rings
 			// Master adds all rings.
-			for (int i = 1; i < NUM_DEVICES; i++) {
+			for (int i = 0; i < NUM_DEVICES; i++) {
+				if (i == MASTER_INDEX) continue;
 				esp_now_peer_info_t peerInfo = {};
 				memcpy(peerInfo.peer_addr, deviceList[i], 6);
 				peerInfo.channel = 0;
@@ -130,7 +131,7 @@ public:
 		else {
 			// ring adds master.
 			esp_now_peer_info_t peerInfo = {};
-			memcpy(peerInfo.peer_addr, deviceList[0], 6);
+			memcpy(peerInfo.peer_addr, deviceList[MASTER_INDEX], 6);
 			peerInfo.channel = 0;
 			peerInfo.encrypt = false;
 			if (esp_now_add_peer(&peerInfo) != ESP_OK) {
@@ -159,7 +160,8 @@ public:
 				float receivedAngle;
 				memcpy(&receivedAngle, incomingData, sizeof(float));
 				int senderIndex = -1;
-				for (int i = 1; i < NUM_DEVICES; i++) {
+				for (int i = 0; i < NUM_DEVICES; i++) {
+					if (i == MASTER_INDEX) continue;
 					if (memcmp(mac, deviceList[i], 6) == 0) {
 						senderIndex = i;
 						break;
@@ -183,27 +185,27 @@ public:
 
 				// Pick out the new target angle for *this* ring
 				switch (deviceIndex) {
-					case 1: 
+					case 0: 
 						servoController.target_angle = state.target_angle_1;
 						servoController.target_angular_velocity = state.target_angular_velocity_1;
 						break;
-					case 2:
+					case 1:
 						servoController.target_angle = state.target_angle_2;
 						servoController.target_angular_velocity = state.target_angular_velocity_2;
 						break;
-					case 3:
+					case 2:
 						servoController.target_angle = state.target_angle_3;
 						servoController.target_angular_velocity = state.target_angular_velocity_3;
 						break;
-					case 4:
+					case 3:
 						servoController.target_angle = state.target_angle_4;
 						servoController.target_angular_velocity = state.target_angular_velocity_4;
 						break;
-					case 5:
+					case 4:
 						servoController.target_angle = state.target_angle_5;
 						servoController.target_angular_velocity = state.target_angular_velocity_5;
 						break;
-					case 6:
+					case 5:
 						servoController.target_angle = state.target_angle_6;
 						servoController.target_angular_velocity = state.target_angular_velocity_6;
 						break;
@@ -228,7 +230,8 @@ public:
 			// 	state.print();
 			// }
 
-			for (int i = 1; i < NUM_DEVICES; ++i) {
+			for (int i = 0; i < NUM_DEVICES; ++i) {
+				if (i == MASTER_INDEX) continue;	
 				sendStateToRing(deviceList[i], state);
 			}
 
@@ -250,7 +253,7 @@ public:
 
 		}
 		else {
-			esp_err_t result = esp_now_send(deviceList[0], (uint8_t*)&servoController.current_angle, sizeof(float));
+			esp_err_t result = esp_now_send(deviceList[MASTER_INDEX], (uint8_t*)&servoController.current_angle, sizeof(float));
 			if (result != ESP_OK) {
 				Serial.println("Error sending angle.");
 			}

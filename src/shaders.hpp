@@ -914,7 +914,6 @@ private:
 	// unsigned long lastShaderChangeMs = 0;
 public:
 	bool hasPhoneEverConnected = false;
-
 	bool useAnimation = true;
 	bool animationHasBeenChanged = false;
 
@@ -972,7 +971,6 @@ public:
 			// new InfernoTest(ledColorsOutside, led_count_this_ring),
 			new Inferno(ledColorsOutside, led_count_this_ring),
 			new ColorCounter(ledColorsOutside, led_count_this_ring),
-
 			// new RedSineWave(ledColorsOutside, led_count_this_ring),
 			// new AquaColors(ledColorsOutside, led_count_this_ring),
 			// new BluePurple(ledColorsOutside, led_count_this_ring),
@@ -1135,23 +1133,23 @@ public:
 			return;
 		}
 
-		// Serial.println("LED strip_outside_cw.numPixels(): ");
-		// Serial.println(strip_outside_cw.numPixels());
+		Serial.println("LED strip_outside_cw.numPixels(): ");
+		Serial.println(strip_outside_cw.numPixels());
 
-		// Serial.println("LED strip_outside_ccw.numPixels(): ");
-		// Serial.println(strip_outside_ccw.numPixels());
+		Serial.println("LED strip_outside_ccw.numPixels(): ");
+		Serial.println(strip_outside_ccw.numPixels());
 
-		// Serial.println("LED strip_inside_cw.numPixels(): ");
-		// Serial.println(strip_inside_cw.numPixels());
+		Serial.println("LED strip_inside_cw.numPixels(): ");
+		Serial.println(strip_inside_cw.numPixels());
 
-		// Serial.println("LED deviceIndex: ");
-		// Serial.println(deviceIndex);
+		Serial.println("LED deviceIndex: ");
+		Serial.println(deviceIndex);
 
-		// Serial.println("LED led_count_this_ring: ");
-		// Serial.println(led_count_this_ring);
+		Serial.println("LED led_count_this_ring: ");
+		Serial.println(led_count_this_ring);
 
-		// Serial.println("LED led_count_this_ring_inside: ");
-		// Serial.println(led_count_this_ring_inside);
+		Serial.println("LED led_count_this_ring_inside: ");
+		Serial.println(led_count_this_ring_inside);
 
 
 		activeShader->update(frame);
