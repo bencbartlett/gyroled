@@ -56,7 +56,7 @@ class Synchronizer {
 public:
 
 	DeviceRole role;
-	int deviceIndex; // 0 = master, 1-6 = ring index
+	// int deviceIndex; // 0 = master, 1-6 = ring index
 
 	float current_angles[6] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
 
@@ -87,11 +87,13 @@ public:
 			}
 		}
 		if (!recognized) {
-			Serial.println("Device MAC not recognized. Defaulting to ring role at index 1.");
+			Serial.println("Device MAC not recognized. Setting device index to -1. THIS WILL CAUSE A SEGFAULT.");
 			role = RING;
-			deviceIndex = 1;
+			deviceIndex = -1;
 		}
 		else {
+			Serial.print("Device index: ");
+			Serial.println(deviceIndex);
 			role = (deviceIndex == 0) ? MASTER : RING;
 		}
 		Serial.print("Role: ");

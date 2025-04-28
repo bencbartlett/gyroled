@@ -23,7 +23,7 @@ const int led_counts_inside[NUM_RINGS] = {
 };
 
 // Wastes a few bytes of ram but makes import ordering much nicer
-const int MAX_LED_PER_RING = led_counts_outside[0] > led_counts_inside[0] ? led_counts_outside[0] : led_counts_inside[0];
+const int MAX_LED_PER_RING = 41; // led_counts_outside[0] > led_counts_inside[0] ? led_counts_outside[0] : led_counts_inside[0];
 
 extern int led_count_this_ring; // this is populated in ShaderManager(); can't be done statically because of import ordering
 extern int led_count_this_ring_inside;
@@ -184,7 +184,7 @@ protected:
 		}
 	}
 public:
-	Shader(LedColor(&colors)[MAX_LED_PER_RING], String shaderName, int ledCount) : ledColors(colors), name(shaderName) {}
+	Shader(LedColor(&colors)[MAX_LED_PER_RING], String shaderName, int ledCount) : ledColors(colors), name(shaderName), ledCount(ledCount) {}
 	virtual void update(int frame) = 0;  // Pure virtual function to be implemented by each shader
 	String getName() const {
 		return name;
@@ -272,6 +272,8 @@ public:
 	}
 };
 */
+
+
 
 class Inferno : public Shader {
 private:
@@ -534,7 +536,7 @@ protected:
 		}
 	}
 public:
-	AccentShader(LedColor(&colors)[MAX_LED_PER_RING], String shaderName, int ledCount) : ledColors(colors), name(shaderName) {}
+	AccentShader(LedColor(&colors)[MAX_LED_PER_RING], String shaderName, int ledCount) : ledColors(colors), name(shaderName), ledCount(ledCount) {}
 	virtual void update(int frame, float intensity) = 0;
 	String getName() const {
 		return name;
@@ -876,6 +878,30 @@ public:
 
 
 
+class ColorCounter : public Shader {
+private:
+	// Define the colors we'll cycle through
+	const LedColor colorPalette[5] = {
+		LedColor(255, 255, 255, 255),  // White
+		LedColor(255, 0, 0, 0),        // Red
+		LedColor(0, 255, 0, 0),        // Green
+		LedColor(0, 0, 255, 0),        // Blue
+		LedColor(255, 0, 255, 0)       // Purple
+	};
+	const int numColors = 5;
+
+public:
+	ColorCounter(LedColor(&colors)[MAX_LED_PER_RING], int ledCount) : Shader(colors, "Color Counter", ledCount) {}
+	
+	void update(int frame) override {
+		for (int i = 0; i < ledCount; i++) {
+			// Cycle through colors based on LED index
+			int colorIndex = i % numColors;
+			ledColors[i] = colorPalette[colorIndex];
+		}
+	}
+};
+
 class ShaderManager {
 private:
 	Adafruit_NeoPixel& strip_outside_cw;
@@ -908,7 +934,9 @@ public:
 		std::vector<Shader*> shaderList = {
 			// good ones
 			// new InfernoTest(ledColors, led_count_this_ring),
+			// new ColorCounter(ledColors, led_count_this_ring),  // Add the ColorCounter shader
 			new Inferno(ledColors, led_count_this_ring),
+
 			// new RedSineWave(ledColors, led_count_this_ring),
 			// new AquaColors(ledColors, led_count_this_ring),
 			// new BluePurple(ledColors, led_count_this_ring),
@@ -953,7 +981,7 @@ public:
 		};
 
 		std::vector<AccentShader*> accentShaderListInside = {
-			new NoAccent(ledColors, led_count_this_ring),
+			// new NoAccent(ledColors, led_count_this_ring),
 			// new WhitePeaks(ledColors, led_count_this_ring),
 			// new LightFanIn(ledColors, led_count_this_ring),
 			// new PulseIntensity(ledColors, led_count_this_ring),
@@ -984,12 +1012,21 @@ public:
 	}
 
 	~ShaderManager() {
+		// Clean up all shaders
 		for (auto& shader : shaders) {
 			delete shader.second;
 		}
+		shaders.clear();
+
+		// Clean up all accent shaders
 		for (auto& shader : accentShaders) {
 			delete shader.second;
 		}
+		accentShaders.clear();
+
+		// Clear the pointers but don't delete them as they're already deleted above
+		activeShader = nullptr;
+		activeAccentShader = nullptr;
 	}
 
 	void setupLedStrips(int brightness) {
@@ -1043,6 +1080,9 @@ public:
 			return;
 		}
 
+		// Serial.println("Skipping run()");
+		// return;
+
 		// // If phone was never connected let's cycle through the good shaders
 		// int tenMins = 30 * 60 * 10;
 		// if (!hasPhoneEverConnected && frame % tenMins == tenMins - 1) {
@@ -1059,21 +1099,27 @@ public:
 		// 	setActiveShader(goodShaderNames[index].c_str());
 		// }
 
+		if (activeShader == nullptr) {
+			Serial.println("Warning: No active shader set");
+			return;
+		}
+
 
 		activeShader->update(frame);
-		activeAccentShader->update(frame, intensity);
-		// Flush the ledColors to the strip
-		for (int i = 0; i < led_count_this_ring; i++) {
-			strip_outside_cw.setPixelColor(i, ledColors[i].pack());
-			strip_outside_ccw.setPixelColor(i, ledColors[led_count_this_ring - i - 1].pack()); // reverse in software
-		}
-		// Flush the ledColors to the strip
-		for (int i = 0; i < led_count_this_ring_inside; i++) {
-			strip_inside_cw.setPixelColor(i, ledColors[i].pack());
-		}
-		strip_outside_ccw.show();
-		strip_outside_cw.show();
-		strip_inside_cw.show();
+
+		// activeAccentShader->update(frame, intensity);
+		// // Flush the ledColors to the strip
+		// for (int i = 0; i < led_count_this_ring; i++) {
+		// 	strip_outside_cw.setPixelColor(i, ledColors[i].pack());
+		// 	strip_outside_ccw.setPixelColor(i, ledColors[led_count_this_ring - i - 1].pack()); // reverse in software
+		// }
+		// // Flush the ledColors to the strip
+		// for (int i = 0; i < led_count_this_ring_inside; i++) {
+		// 	strip_inside_cw.setPixelColor(i, ledColors[i].pack());
+		// }
+		// strip_outside_ccw.show();
+		// strip_outside_cw.show();
+		// strip_inside_cw.show();
 
 		animationHasBeenChanged = false;
 	}

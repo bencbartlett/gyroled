@@ -102,7 +102,7 @@ void loop() {
 		trajectoryPlanner.update(state);
 	}
 
-	if (synchronizer.deviceIndex == 5) {
+	if (deviceIndex == 5) {
 		state.brightness=255;
 	}
 
