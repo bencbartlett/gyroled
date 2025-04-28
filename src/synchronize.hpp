@@ -1,3 +1,6 @@
+#ifndef SYNCHRONIZE_HPP
+#define SYNCHRONIZE_HPP
+
 #include <Arduino.h>
 #include <WiFi.h>
 #include <esp_now.h>
@@ -263,3 +266,5 @@ public:
 };
 
 Synchronizer* Synchronizer::instance = nullptr;
+
+#endif // SYNCHRONIZE_HPP

@@ -76,6 +76,8 @@ void setup() {
 
 	servoController.setupServo();
 
+	setupBluetooth();
+
 	if (synchronizer.role == MASTER) {
 		// setupAsyncSampling();
 		// setupBluetooth();

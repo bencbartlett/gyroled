@@ -4,6 +4,7 @@
 #include "state.hpp"
 #include "servos.hpp"
 #include "shaders.hpp"
+// #include "synchronize.hpp"
 
 // UUIDs for BLE service and characteristic, randomly generated hex strings
 #define SERVICE_UUID        		"4fafc204-1fb5-459e-8fcc-c5c9c331914b"
@@ -12,6 +13,7 @@
 
 extern ShaderManager shaderManager;
 extern ServoManager servoManager;
+// extern Synchronizer synchronizer;
 extern State state;
 
 String receivedValue = "None";
@@ -176,11 +178,12 @@ void bluetoothTask(void* args) {
 
 void setupBluetooth() {
 	// Create a task that will handle initializing and running the BLE functionality
-	#if MASTER_CONTROLLER
-		int core = 1;  // async sampling gets run by core 0 so we put core 1 for less congestion (check if this actually helps)
-	#else
-		int core = CONFIG_ESP32_WIFI_TASK_PINNED_TO_CORE_0 ? 0 : 1;
-	#endif
+	int core;
+	if (true) { //synchronizer.role == MASTER) {
+		core = 1;  // async sampling gets run by core 0 so we put core 1 for less congestion (check if this actually helps)
+	} else {
+		core = CONFIG_ESP32_WIFI_TASK_PINNED_TO_CORE_0 ? 0 : 1;
+	}
 
 	TaskHandle_t bluetoothTaskHandle;
 	xTaskCreatePinnedToCore(

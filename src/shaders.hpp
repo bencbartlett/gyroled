@@ -33,7 +33,6 @@ const int led_count_total_outside = led_counts_outside[0] + led_counts_outside[1
 const int led_count_total_inside = led_counts_inside[0] + led_counts_inside[1] + led_counts_inside[2] + led_counts_inside[3] + led_counts_inside[4] + led_counts_inside[5];
 const int led_count_total = led_count_total_outside + led_count_total_inside;
 
-
 // TODO: fix
 // const int ring_1_midpoint_L = (int)(LED_COUNT_RING_1 * 0.25);
 // const int ring_1_midpoint_R = (int)(LED_COUNT_RING_1 * 0.75 + 1); // fudge factor
@@ -99,6 +98,19 @@ struct LedColor {
 		return LedColor(Adafruit_NeoPixel::gamma32(Adafruit_NeoPixel::ColorHSV(hue * 182)));  // Multiply by 182 to convert 0-360 to 0-65535
 	}
 
+	static LedColor hueInterpolateZigZag(float t, int startHue, int endHue) {
+		float t_mod;
+		int period = static_cast<int>(floor(t));
+		float fractional = t - period;
+		if (period % 2 == 0) {
+			t_mod = fractional;  // Interpolates from 0 to 1	
+		}
+		else {
+			t_mod = 1.0f - fractional;  // Interpolates from 1 to 0
+		}
+		return LedColor::hueInterpolate(t_mod, startHue, endHue);
+	}
+
 	static LedColor hueInterpolateCCW(float t, int startHue, int endHue) {
 		if (startHue < endHue) {
 			startHue += 360;
@@ -113,31 +125,25 @@ struct LedColor {
  * LED helper functions
  */
 
-// // Returns the x position of a LED on any ring, normalized between -1 and +1
-// inline float getXpos(int ledIndex) {
-// 	if (ledIndex < LED_COUNT_RING_1) {
-// 		return sin(2 * PI * ledIndex / LED_COUNT_RING_1);
-// 	}
-// 	else if (ledIndex < LED_COUNT_RING_2) {
-// 		return -1.0 * cos(2 * PI * (ledIndex - LED_COUNT_RING_1) / LED_COUNT_RING_2);
-// 	}
-// 	else {
-// 		return sin(2 * PI * (ledIndex - LED_COUNT_RING_1 - LED_COUNT_RING_2) / LED_COUNT_RING_3);
-// 	}
-// }
+// Returns the x position of a LED on any ring, normalized between -1 and +1
+inline float getXpos(int ledIndex, int ledCount) {
+	// Rings are oriented in alternating x and y axes. 
+	// deviceIndex % 2 == 0 spins about x axis, deviceIndex % 2 == 1 spins about y axis
+	if (deviceIndex % 2 == 0) {
+		return -1.0 * cos(2 * PI * ledIndex / ledCount);
+	} else {
+		return sin(2 * PI * ledIndex / ledCount);
+	}
+}
 
-// // Returns the y position of a LED on any ring, normalized between -1 and +1
-// inline float getYpos(int ledIndex) {
-// 	if (ledIndex < LED_COUNT_RING_1) {
-// 		return -1.0 * cos(2 * PI * ledIndex / LED_COUNT_RING_1);
-// 	}
-// 	else if (ledIndex < LED_COUNT_RING_2) {
-// 		return -1.0 * sin(2 * PI * (ledIndex - LED_COUNT_RING_1) / LED_COUNT_RING_2);
-// 	}
-// 	else {
-// 		return -1.0 * cos(2 * PI * (ledIndex - LED_COUNT_RING_1 - LED_COUNT_RING_2) / LED_COUNT_RING_3);
-// 	}
-// }
+// Returns the y position of a LED on any ring, normalized between -1 and +1
+inline float getYpos(int ledIndex, int ledCount) {
+	if (deviceIndex % 2 == 0) {
+		return -1.0 * sin(2 * PI * ledIndex / ledCount);
+	} else {
+		return -1.0 * cos(2 * PI * ledIndex / ledCount);
+	}
+}
 
 
 /**
@@ -301,14 +307,14 @@ public:
 
 	void update(int frame) override {
 		for (int i = 0; i < ledCount; i++) {
-			// float t = float(2 * i) / float(ledCount) + float(frame) / float(cycleTime);
-			// ledColors[i] = LedColor::hueInterpolate(i, ringHueRanges[deviceIndex].startHue, ringHueRanges[deviceIndex].endHue);
-			ledColors[i] = hueInterpolate(i, ringHueRanges[deviceIndex], frame, ledCount);
+			float t = float(2 * i) / float(ledCount) + float(frame) / float(cycleTime);
+			ledColors[i] = LedColor::hueInterpolateZigZag(t, ringHueRanges[deviceIndex].startHue, ringHueRanges[deviceIndex].endHue);
+			// ledColors[i] = hueInterpolate(i, ringHueRanges[deviceIndex], frame, ledCount);
 			// ledColors[i] = LedColor::interpolateZigZag(ledColors[i], ledColors[i], float(i) / ledCount);
 		}
 	}
 
-	LedColor hueInterpolate(int ledIndex, HueRange hueRange, int frame, int totalLeds) {
+	LedColor sineHueInterpolate(int ledIndex, HueRange hueRange, int frame, int totalLeds) {
 		float sinVal = 0.5 + 0.5 * sin(
 			2.0 * PI * (
 				(float(periods) * float(ledIndex) / float(totalLeds))
@@ -460,28 +466,20 @@ public:
 // };
 
 
-// class RedSineWave : public Shader {
-// private:
-// 	int periodsPerRing = 3;
-// 	int p = 2;
-// 	float speed = 0.015;
-// public:
-// 	RedSineWave(LedColor(&colors)[LED_COUNT_TOTAL]) : Shader(colors, "Red Sine Waves") {}
-// 	void update(int frame) override {
-// 		for (int i = 0; i < LED_COUNT_RING_1; i++) {
-// 			float theta = 2 * PI * (float(i) / LED_COUNT_RING_1 + frame * speed * .7);
-// 			ledColors[i] = sinLoops(LedColor(255, 0, 0, 0), theta * periodsPerRing, p);
-// 		}
-// 		for (int i = 0; i < LED_COUNT_RING_2; i++) {
-// 			float theta = 2 * PI * (float(i) / LED_COUNT_RING_2 + frame * speed * 1.0);
-// 			ledColors[i + LED_COUNT_RING_1] = sinLoops(LedColor(255, 0, 0, 0), theta * periodsPerRing, p);
-// 		}
-// 		for (int i = 0; i < LED_COUNT_RING_3; i++) {
-// 			float theta = 2 * PI * (float(i) / LED_COUNT_RING_3 + frame * speed * 1.5);
-// 			ledColors[i + LED_COUNT_RING_1 + LED_COUNT_RING_2] = sinLoops(LedColor(255, 0, 0, 0), theta * periodsPerRing, p);
-// 		}
-// 	}
-// };
+class RedSineWave : public Shader {
+private:
+	int periodsPerRing = 3;
+	int p = 2;
+	float speed = 0.015;
+public:
+	RedSineWave(LedColor(&colors)[MAX_LED_PER_RING], int ledCount) : Shader(colors, "Red Sine Waves", ledCount) {}
+	void update(int frame) override {
+		for (int i = 0; i < ledCount; i++) {
+			float theta = 2 * PI * (float(i) / ledCount + frame * speed * .7);
+			ledColors[i] = sinLoops(LedColor(255, 0, 0, 0), theta * periodsPerRing, p);
+		}
+	}
+};
 
 
 // class RedSquareWave : public Shader {
@@ -508,23 +506,23 @@ public:
 // };
 
 
-// class Bisexual : public Shader {
-// private:
-// 	float speed = 0.1;
+class Bisexual : public Shader {
+private:
+	float speed = 0.1;
 
-// 	int startHue = 200;
-// 	int endHue = 340;
+	int startHue = 200;
+	int endHue = 340;
 
-// public:
-// 	Bisexual(LedColor(&colors)[LED_COUNT_TOTAL]) : Shader(colors, "Bisexual") {}
-// 	void update(int frame) override {
-// 		for (int i = 0; i < LED_COUNT_TOTAL; i++) {
-// 			float x = getXpos(i);
-// 			float t = pow(sin(PI / 2 * x - speed * float(frame)), 2);
-// 			ledColors[i] = LedColor::hueInterpolate(t, startHue, endHue);
-// 		}
-// 	}
-// }; 
+public:
+	Bisexual(LedColor(&colors)[MAX_LED_PER_RING], int ledCount) : Shader(colors, "Bisexual", ledCount) {}
+	void update(int frame) override {
+		for (int i = 0; i < ledCount; i++) {
+			float x = getXpos(i, ledCount);
+			float t = pow(sin(PI / 2 * x - speed * float(frame)), 2);
+			ledColors[i] = LedColor::hueInterpolate(t, startHue, endHue);
+		}
+	}
+}; 
 
 
 class AccentShader {
@@ -971,12 +969,12 @@ public:
 			// new InfernoTest(ledColorsOutside, led_count_this_ring),
 			new Inferno(ledColorsOutside, led_count_this_ring),
 			new ColorCounter(ledColorsOutside, led_count_this_ring),
-			// new RedSineWave(ledColorsOutside, led_count_this_ring),
+			new RedSineWave(ledColorsOutside, led_count_this_ring),
+			new Bisexual(ledColorsOutside, led_count_this_ring),
 			// new AquaColors(ledColorsOutside, led_count_this_ring),
 			// new BluePurple(ledColorsOutside, led_count_this_ring),
 			// new LoopyRainbow(ledColorsOutside, led_count_this_ring),
 			// new LoopyRainbow2(ledColorsOutside, led_count_this_ring),
-			// new Bisexual(ledColorsOutside, led_count_this_ring),
 			// // shitty ones
 			// new WhiteOverRainbow(ledColorsOutside, led_count_this_ring),
 			// new Inferno2(ledColorsOutside, led_count_this_ring),
@@ -989,12 +987,12 @@ public:
 			new ColorCounter(ledColorsInside, led_count_this_ring_inside),
 			// good ones
 			// new InfernoTest(ledColorsInside, led_count_this_ring_inside),
-			// new RedSineWave(ledColorsInside, led_count_this_ring_inside),
+			new RedSineWave(ledColorsInside, led_count_this_ring_inside),
 			// new AquaColors(ledColorsInside, led_count_this_ring_inside),
 			// new BluePurple(ledColorsInside, led_count_this_ring_inside),
 			// new LoopyRainbow(ledColorsInside, led_count_this_ring_inside),
 			// new LoopyRainbow2(ledColorsInside, led_count_this_ring_inside),
-			// new Bisexual(ledColorsInside, led_count_this_ring_inside),
+			new Bisexual(ledColorsInside, led_count_this_ring_inside),
 			// // shitty ones
 			// new WhiteOverRainbow(ledColorsInside, led_count_this_ring_inside),
 			// new Inferno2(ledColorsInside, led_count_this_ring_inside),
@@ -1133,23 +1131,23 @@ public:
 			return;
 		}
 
-		Serial.println("LED strip_outside_cw.numPixels(): ");
-		Serial.println(strip_outside_cw.numPixels());
+		// Serial.println("LED strip_outside_cw.numPixels(): ");
+		// Serial.println(strip_outside_cw.numPixels());
 
-		Serial.println("LED strip_outside_ccw.numPixels(): ");
-		Serial.println(strip_outside_ccw.numPixels());
+		// Serial.println("LED strip_outside_ccw.numPixels(): ");
+		// Serial.println(strip_outside_ccw.numPixels());
 
-		Serial.println("LED strip_inside_cw.numPixels(): ");
-		Serial.println(strip_inside_cw.numPixels());
+		// Serial.println("LED strip_inside_cw.numPixels(): ");
+		// Serial.println(strip_inside_cw.numPixels());
 
-		Serial.println("LED deviceIndex: ");
-		Serial.println(deviceIndex);
+		// Serial.println("LED deviceIndex: ");
+		// Serial.println(deviceIndex);
 
-		Serial.println("LED led_count_this_ring: ");
-		Serial.println(led_count_this_ring);
+		// Serial.println("LED led_count_this_ring: ");
+		// Serial.println(led_count_this_ring);
 
-		Serial.println("LED led_count_this_ring_inside: ");
-		Serial.println(led_count_this_ring_inside);
+		// Serial.println("LED led_count_this_ring_inside: ");
+		// Serial.println(led_count_this_ring_inside);
 
 
 		activeShader->update(frame);
