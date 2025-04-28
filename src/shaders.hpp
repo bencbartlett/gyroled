@@ -1,3 +1,4 @@
+#include <Arduino.h>
 #include <map>
 #include <vector>
 #include <Adafruit_NeoPixel.h>
@@ -6,7 +7,7 @@
 #define NUM_RINGS 6
 
 const int led_counts_outside[NUM_RINGS] = {
-	40,
+	54,
 	40,
 	40,
 	40,
@@ -23,7 +24,7 @@ const int led_counts_inside[NUM_RINGS] = {
 };
 
 // Wastes a few bytes of ram but makes import ordering much nicer
-const int MAX_LED_PER_RING = 41; // led_counts_outside[0] > led_counts_inside[0] ? led_counts_outside[0] : led_counts_inside[0];
+const int MAX_LED_PER_RING = 54; // led_counts_outside[0] > led_counts_inside[0] ? led_counts_outside[0] : led_counts_inside[0];
 
 extern int led_count_this_ring; // this is populated in ShaderManager(); can't be done statically because of import ordering
 extern int led_count_this_ring_inside;
@@ -907,7 +908,8 @@ private:
 	Adafruit_NeoPixel& strip_outside_cw;
 	Adafruit_NeoPixel& strip_outside_ccw;
 	Adafruit_NeoPixel& strip_inside_cw;
-	LedColor(&ledColors)[MAX_LED_PER_RING];
+	LedColor ledColorsOutside[MAX_LED_PER_RING];
+	LedColor ledColorsInside[MAX_LED_PER_RING];
 	// unsigned long lastShaderChangeMs = 0;
 public:
 	bool hasPhoneEverConnected = false;
@@ -924,72 +926,100 @@ public:
 	ShaderManager(
 		Adafruit_NeoPixel& strip1, 
 		Adafruit_NeoPixel& strip2, 
-		Adafruit_NeoPixel& strip3, 
-		LedColor(&colors)[MAX_LED_PER_RING]
-	) : strip_outside_cw(strip1), strip_outside_ccw(strip2), strip_inside_cw(strip3), ledColors(colors) {
+		Adafruit_NeoPixel& strip3 
+	) : strip_outside_cw(strip1), strip_outside_ccw(strip2), strip_inside_cw(strip3) { }
 
+	~ShaderManager() {
+		// Clean up all shaders
+		for (auto& shader : shaders) {
+			delete shader.second;
+		}
+		shaders.clear();
+
+		// Clean up all accent shaders
+		for (auto& shader : accentShaders) {
+			delete shader.second;
+		}
+		accentShaders.clear();
+
+		// Clear the pointers but don't delete them as they're already deleted above
+		activeShader = nullptr;
+		activeAccentShader = nullptr;
+	}
+
+	void init() {
 		led_count_this_ring = led_counts_outside[deviceIndex];
 		led_count_this_ring_inside = led_counts_inside[deviceIndex];
 
+		Serial.println("LED led_count_this_ring: ");
+		Serial.println(led_count_this_ring);
+
+		Serial.println("LED led_count_this_ring_inside: ");
+		Serial.println(led_count_this_ring_inside);
+		Serial.println("LED deviceIndex: ");
+		Serial.println(deviceIndex);
+		Serial.println("--------------------------------");
+
 		std::vector<Shader*> shaderList = {
 			// good ones
-			// new InfernoTest(ledColors, led_count_this_ring),
-			// new ColorCounter(ledColors, led_count_this_ring),  // Add the ColorCounter shader
-			new Inferno(ledColors, led_count_this_ring),
+			// new InfernoTest(ledColorsOutside, led_count_this_ring),
+			new ColorCounter(ledColorsOutside, led_count_this_ring),
+			new Inferno(ledColorsOutside, led_count_this_ring),
 
-			// new RedSineWave(ledColors, led_count_this_ring),
-			// new AquaColors(ledColors, led_count_this_ring),
-			// new BluePurple(ledColors, led_count_this_ring),
-			// new LoopyRainbow(ledColors, led_count_this_ring),
-			// new LoopyRainbow2(ledColors, led_count_this_ring),
-			// new Bisexual(ledColors, led_count_this_ring),
+			// new RedSineWave(ledColorsOutside, led_count_this_ring),
+			// new AquaColors(ledColorsOutside, led_count_this_ring),
+			// new BluePurple(ledColorsOutside, led_count_this_ring),
+			// new LoopyRainbow(ledColorsOutside, led_count_this_ring),
+			// new LoopyRainbow2(ledColorsOutside, led_count_this_ring),
+			// new Bisexual(ledColorsOutside, led_count_this_ring),
 			// // shitty ones
-			// new WhiteOverRainbow(ledColors, led_count_this_ring),
-			// new Inferno2(ledColors, led_count_this_ring),
-			// new RedSquareWave(ledColors, led_count_this_ring),
+			// new WhiteOverRainbow(ledColorsOutside, led_count_this_ring),
+			// new Inferno2(ledColorsOutside, led_count_this_ring),
+			// new RedSquareWave(ledColorsOutside, led_count_this_ring),
 			// Add more shaders here
 		};
 
 		std::vector<Shader*> shaderListInside = {
+			new ColorCounter(ledColorsInside, led_count_this_ring_inside),
 			// good ones
-			// new InfernoTest(ledColors, led_count_this_ring),
-			// new Inferno(ledColors, led_count_this_ring),
-			// new RedSineWave(ledColors, led_count_this_ring),
-			// new AquaColors(ledColors, led_count_this_ring),
-			// new BluePurple(ledColors, led_count_this_ring),
-			// new LoopyRainbow(ledColors, led_count_this_ring),
-			// new LoopyRainbow2(ledColors, led_count_this_ring),
-			// new Bisexual(ledColors, led_count_this_ring),
+			// new InfernoTest(ledColorsInside, led_count_this_ring_inside),
+			// new Inferno(ledColorsInside, led_count_this_ring_inside),
+			// new RedSineWave(ledColorsInside, led_count_this_ring_inside),
+			// new AquaColors(ledColorsInside, led_count_this_ring_inside),
+			// new BluePurple(ledColorsInside, led_count_this_ring_inside),
+			// new LoopyRainbow(ledColorsInside, led_count_this_ring_inside),
+			// new LoopyRainbow2(ledColorsInside, led_count_this_ring_inside),
+			// new Bisexual(ledColorsInside, led_count_this_ring_inside),
 			// // shitty ones
-			// new WhiteOverRainbow(ledColors, led_count_this_ring),
-			// new Inferno2(ledColors, led_count_this_ring),
-			// new RedSquareWave(ledColors, led_count_this_ring),
+			// new WhiteOverRainbow(ledColorsInside, led_count_this_ring_inside),
+			// new Inferno2(ledColorsInside, led_count_this_ring_inside),
+			// new RedSquareWave(ledColorsInside, led_count_this_ring_inside),
 			// Add more shaders here
 		};
 
 		std::vector<AccentShader*> accentShaderList = {
-			new NoAccent(ledColors, led_count_this_ring),
-			// new WhitePeaks(ledColors, led_count_this_ring),
-			// new LightFanIn(ledColors, led_count_this_ring),
-			// new PulseIntensity(ledColors, led_count_this_ring),
-			// new WhitePeaksBeatsOnly(ledColors, led_count_this_ring),
-			// new PulsedStrobeOverlay(ledColors, led_count_this_ring),
-			// new Strobe(ledColors, led_count_this_ring),
-			// new BeatHueShift(ledColors, led_count_this_ring),
-			// new BeatHueShiftQuantized(ledColors, led_count_this_ring),
+			new NoAccent(ledColorsOutside, led_count_this_ring),
+			// new WhitePeaks(ledColorsOutside, led_count_this_ring),
+			// new LightFanIn(ledColorsOutside, led_count_this_ring),
+			// new PulseIntensity(ledColorsOutside, led_count_this_ring),
+			// new WhitePeaksBeatsOnly(ledColorsOutside, led_count_this_ring),
+			// new PulsedStrobeOverlay(ledColorsOutside, led_count_this_ring),
+			// new Strobe(ledColorsOutside, led_count_this_ring),
+			// new BeatHueShift(ledColorsOutside, led_count_this_ring),
+			// new BeatHueShiftQuantized(ledColorsOutside, led_count_this_ring),
 			// Add more shaders here
 		};
 
 		std::vector<AccentShader*> accentShaderListInside = {
-			// new NoAccent(ledColors, led_count_this_ring),
-			// new WhitePeaks(ledColors, led_count_this_ring),
-			// new LightFanIn(ledColors, led_count_this_ring),
-			// new PulseIntensity(ledColors, led_count_this_ring),
-			// new WhitePeaksBeatsOnly(ledColors, led_count_this_ring),
-			// new PulsedStrobeOverlay(ledColors, led_count_this_ring),
-			// new Strobe(ledColors, led_count_this_ring),
-			// new BeatHueShift(ledColors, led_count_this_ring),
-			// new BeatHueShiftQuantized(ledColors, led_count_this_ring),
+			// new NoAccent(ledColorsInside, led_count_this_ring_inside),
+			// new WhitePeaks(ledColorsInside, led_count_this_ring_inside),
+			// new LightFanIn(ledColorsInside, led_count_this_ring_inside),
+			// new PulseIntensity(ledColorsInside, led_count_this_ring_inside),
+			// new WhitePeaksBeatsOnly(ledColorsInside, led_count_this_ring_inside),
+			// new PulsedStrobeOverlay(ledColorsInside, led_count_this_ring_inside),
+			// new Strobe(ledColorsInside, led_count_this_ring_inside),
+			// new BeatHueShift(ledColorsInside, led_count_this_ring_inside),
+			// new BeatHueShiftQuantized(ledColorsInside, led_count_this_ring_inside),
 			// // Add more shaders here
 		};
 
@@ -1009,24 +1039,6 @@ public:
 		if (!accentShaderList.empty()) {
 			activeAccentShader = accentShaderList[0]; // Set the first shader as the default active shader
 		}
-	}
-
-	~ShaderManager() {
-		// Clean up all shaders
-		for (auto& shader : shaders) {
-			delete shader.second;
-		}
-		shaders.clear();
-
-		// Clean up all accent shaders
-		for (auto& shader : accentShaders) {
-			delete shader.second;
-		}
-		accentShaders.clear();
-
-		// Clear the pointers but don't delete them as they're already deleted above
-		activeShader = nullptr;
-		activeAccentShader = nullptr;
 	}
 
 	void setupLedStrips(int brightness) {
@@ -1080,9 +1092,6 @@ public:
 			return;
 		}
 
-		// Serial.println("Skipping run()");
-		// return;
-
 		// // If phone was never connected let's cycle through the good shaders
 		// int tenMins = 30 * 60 * 10;
 		// if (!hasPhoneEverConnected && frame % tenMins == tenMins - 1) {
@@ -1104,22 +1113,43 @@ public:
 			return;
 		}
 
-
 		activeShader->update(frame);
 
-		// activeAccentShader->update(frame, intensity);
-		// // Flush the ledColors to the strip
-		// for (int i = 0; i < led_count_this_ring; i++) {
-		// 	strip_outside_cw.setPixelColor(i, ledColors[i].pack());
-		// 	strip_outside_ccw.setPixelColor(i, ledColors[led_count_this_ring - i - 1].pack()); // reverse in software
-		// }
-		// // Flush the ledColors to the strip
-		// for (int i = 0; i < led_count_this_ring_inside; i++) {
-		// 	strip_inside_cw.setPixelColor(i, ledColors[i].pack());
-		// }
-		// strip_outside_ccw.show();
-		// strip_outside_cw.show();
-		// strip_inside_cw.show();
+		Serial.println("LED strip_outside_cw.numPixels(): ");
+		Serial.println(strip_outside_cw.numPixels());
+
+		Serial.println("LED strip_outside_ccw.numPixels(): ");
+		Serial.println(strip_outside_ccw.numPixels());
+
+		Serial.println("LED strip_inside_cw.numPixels(): ");
+		Serial.println(strip_inside_cw.numPixels());
+
+		Serial.println("LED deviceIndex: ");
+		Serial.println(deviceIndex);
+
+		Serial.println("LED led_count_this_ring: ");
+		Serial.println(led_count_this_ring);
+
+		Serial.println("LED led_count_this_ring_inside: ");
+		Serial.println(led_count_this_ring_inside);
+
+
+		
+		if (activeAccentShader != nullptr) {
+			activeAccentShader->update(frame, intensity);
+		}
+
+		// Flush the ledColors to the strip
+		for (int i = 0; i < led_count_this_ring; i++) {
+			strip_outside_cw.setPixelColor(i, ledColorsOutside[i].pack());
+			strip_outside_ccw.setPixelColor(i, ledColorsOutside[(led_count_this_ring - 1) - i].pack()); // reverse in software
+		}
+		for (int i = 0; i < led_count_this_ring_inside; i++) {
+			strip_inside_cw.setPixelColor(i, ledColorsInside[i].pack());
+		}
+		strip_outside_ccw.show();
+		strip_outside_cw.show();
+		strip_inside_cw.show();
 
 		animationHasBeenChanged = false;
 	}

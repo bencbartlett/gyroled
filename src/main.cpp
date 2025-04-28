@@ -22,8 +22,6 @@
 #define LED_PIN_2         		7 //8  // outside edge of ring, forward side of servo (toward input cable)
 #define LED_PIN_3         		43 //6 // inside edge of ring
 
-#define LED_COUNT       	 	130
-
 // int frame = 0;
 // float updatesPerSecond = 50.0;
 
@@ -48,8 +46,7 @@ ServoController servoController;
 Synchronizer synchronizer;
 TrajectoryPlanner trajectoryPlanner;
 
-LedColor ledColors[MAX_LED_PER_RING];
-ShaderManager shaderManager(strip1, strip2, strip3, ledColors);
+ShaderManager shaderManager(strip1, strip2, strip3);
 
 
 
@@ -60,21 +57,24 @@ void setup() {
 	setupBluetooth();
 	#else
 
-	Serial.begin(115200);
+	Serial.begin(115200); // This is already done in synchronizer init
 	Serial1.begin(115200, SERIAL_8N1, SERVO_RX_PIN, SERVO_TX_PIN);
-
 	Serial.println("Waiting for serial to connect...");
-	delay(5000);
+	delay(1000);
 	Serial.println("Done waiting");
-
-
-	// servoManager.setupServos();
-	shaderManager.setupLedStrips(state.brightness);
-	servoController.setupServo();
 
 	Synchronizer::instance = &synchronizer;
 	Serial.println("Synchronizer instance created");
 	synchronizer.init();
+
+
+	// servoManager.setupServos();
+
+	// This must be done after synchronizer.init()
+	shaderManager.init();
+	shaderManager.setupLedStrips(state.brightness);
+
+	servoController.setupServo();
 
 	if (synchronizer.role == MASTER) {
 		// setupAsyncSampling();

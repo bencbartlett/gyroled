@@ -65,7 +65,6 @@ public:
 	}
 
 	void init() {
-		Serial.begin(115200);
 		WiFi.mode(WIFI_STA);
 
 		// Determine device role based on MAC address.
