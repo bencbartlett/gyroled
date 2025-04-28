@@ -18,7 +18,7 @@ struct State {
 	unsigned long elapsedBeats = 0;
 
     // Visual state
-	uint8_t brightness    = 120; // 0-255
+	uint8_t brightness    = 160; // 0-255
     uint8_t shader_index  = 0;
     float beat_intensity  = 0.0f;
 
