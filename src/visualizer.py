@@ -10,7 +10,8 @@ import pyqtgraph as pg
 import numpy as np
 
 # Adjust the following line to your serial port
-serialPort = '/dev/cu.usbserial-0001'
+# serialPort = '/dev/cu.usbserial-0001'
+serialPort = '/dev/cu.usbmodem2101' # right usb-c port on my MBP
 baudRate = 115200
 
 class MainWindow(QMainWindow):

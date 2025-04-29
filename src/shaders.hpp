@@ -1025,6 +1025,7 @@ public:
 			activeAccentShaderInside = accentShaderListInside[0]; // Set the first shader as the default active shader
 		}
 	}
+	
 	void setupLedStrips(int brightness) {
 		strip_outside_cw.begin();
 		strip_outside_cw.setBrightness(brightness);

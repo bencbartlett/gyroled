@@ -5,6 +5,8 @@
 #include "fft.h"
 #include "state.hpp"
 
+#define OUTPUT_TO_VISUALIZER 	false
+#define OUTPUT_TO_SERIAL 		true
 
 #define HEURISTIC_BUFFER_SIZE 			2048  // at 30fps this is 68 seconds of context
 #define MAXIMUM_BEATS_PER_MINUTE	 	155
@@ -46,7 +48,7 @@ float calculateRecencyFactor() {
 	unsigned long durationSinceLastBeat = millis() - lastBeatTimestamp;
 	// int referenceDuration = MINIMUM_DELAY_BETWEEN_BEATS - SINGLE_BEAT_DURATION;
 	int referenceDuration = TYPICAL_DELAY_BETWEEN_BEATS - SINGLE_BEAT_DURATION;
-	float maxRecencyFactor = 1.2;
+	float maxRecencyFactor = 1.05;
 	// float recencyFactor = constrain(1 - (float(referenceDuration) / durationSinceLastBeat), 0.0, maxRecencyFactor);
 	float recencyFactor = constrain(float(durationSinceLastBeat) / float(referenceDuration), 0.0, maxRecencyFactor);
 	return recencyFactor;
@@ -123,6 +125,8 @@ float computeBeatHeuristic() {
 
 	const bool convolveWithPreviousBeats = true;
 	const float previousBeatBonus = 0.25;
+	const bool applyRecencyFactor = true;
+
 	// Convolve the heuristics with the previous beats, counting heuristics that are ~126 beats earlier
 	// This could help to fix missing beats
 	int expectedBpm = 126;
@@ -150,7 +154,9 @@ float computeBeatHeuristic() {
 	}
 
 		// float heuristicThreshold = 1.5 * heuristic_ema;
-	heuristicPostProcessed *= calculateRecencyFactor();
+	if (applyRecencyFactor) {
+		heuristicPostProcessed *= calculateRecencyFactor();
+	}
 	if (heuristicPostProcessed > heuristicThreshold) {
 		lastBeatTimestamp = millis();
 		// Serial.print("BEAT (threshold) ");
@@ -178,5 +184,35 @@ float computeBeatHeuristic() {
 	// }
 
 	// return heuristic;
+
+	#if OUTPUT_TO_VISUALIZER
+		String foo = "[SPECTROGRAM]:";
+		for (uint16_t i = 0; i < NUM_BANDS; i++) {
+			// Serial.println(bands[i]); // Send each frequency bin's magnitude
+			foo += fftProcessedPrev[i];
+			if (i < NUM_BANDS - 1) {
+				foo += ",";
+			}
+		}
+		foo += ";";
+		foo += heuristicPostProcessed;
+		Serial.println(foo);
+	#endif // OUTPUT_TO_VISUALIZER
+
+	#if OUTPUT_TO_SERIAL
+		// Print a number of = signs corresponding to the heuristic
+		int numEquals = int(heuristicPostProcessed * 5.0);
+		numEquals = std::min(numEquals, 100);
+		Serial.print("Heuristic: ");
+		for (int i = 0; i < numEquals; i++) {
+			Serial.print("=");
+		}
+		Serial.println("");
+
+		if (heuristicPostProcessed > heuristicThreshold) {
+			Serial.println("BEAT! ********************************************************");
+		}
+	#endif // OUTPUT_TO_SERIAL
+
 	return heuristicPostProcessed;
 }

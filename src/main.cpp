@@ -12,8 +12,7 @@
 
 
 #define BLUETOOTH_DEBUG_MODE 	false
-#define PRINT_SUMMARY    		true
-#define OUTPUT_TO_VISUALIZER 	false
+#define PRINT_SUMMARY    		false
 
 #define SERVO_RX_PIN 5 //4
 #define SERVO_TX_PIN  6//5
@@ -76,11 +75,11 @@ void setup() {
 
 	servoController.setupServo();
 
-	setupBluetooth(); // TODO: this is for debug and should normally only run on master controller
-
 	if (synchronizer.role == MASTER) {
-		// setupAsyncSampling();
-		// setupBluetooth();
+		setupAsyncSampling();
+		setupBluetooth();
+	} else {
+		setupBluetooth(); // TODO: this is for debug and should normally only run on master controller
 	}
 	
 	
@@ -122,7 +121,7 @@ void loop() {
 
 	float beatHeuristic = 0.0;
 	if (synchronizer.role == MASTER) {
-		// beatHeuristic = computeBeatHeuristic();
+		beatHeuristic = computeBeatHeuristic();
 	}
 
 	if (synchronizer.role == RING) {
@@ -132,19 +131,7 @@ void loop() {
 	}
 
 
-	#if OUTPUT_TO_VISUALIZER
-		String foo = "[SPECTROGRAM]:";
-		for (uint16_t i = 0; i < NUM_BANDS; i++) {
-			// Serial.println(bands[i]); // Send each frequency bin's magnitude
-			foo += spectrogram[i];
-			if (i < NUM_BANDS - 1) {
-				foo += ",";
-			}
-		}
-		foo += ";";
-		foo += beatHeuristic;
-		Serial.println(foo);
-	#endif // OUTPUT_TO_VISUALIZER
+
 
 	#if PRINT_SUMMARY
 		Serial.print("Updates per second: ");
@@ -160,7 +147,7 @@ void loop() {
 	#endif // PRINT_SUMMARY
 
 	// Send synchronization data via ESP-NOW
-	synchronizer.synchronize();
+	// synchronizer.synchronize();
 	#endif // BLUETOOTH_DEBUG_MODE
 
 

@@ -6,7 +6,6 @@
 #define NUM_GEQ_CHANNELS 16
 
 void setupAsyncSampling();
-void setupI2S();
 void computeSpectrogram(float spectrogram[NUM_BANDS]);
 void doFFT(float frequencies[SAMPLES / 2]);
 void computeSpectrogramWLED(float frequencies[SAMPLES / 2], float spectrogram[NUM_GEQ_CHANNELS]);

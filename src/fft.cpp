@@ -3,7 +3,8 @@
 #include "esp_task_wdt.h"
 #include <Arduino.h>
 #include <arduinoFFT.h>
-#include <driver/i2s.h>
+// #include <driver/i2s.h>
+#include <I2S.h>
 #include <cmath> 
 
 #define AUDIO_IN_PIN 		35
@@ -12,7 +13,7 @@
 #define SAMPLES 			512		// Must be a power of 2
 #define BUFFER_LENGTH   	512		// Length of the cyclic buffer for reading data; must be at least SAMPLES length
 // #define SAMPLING_FREQ 		23000	// Max sampling frequency of the mic if using adc1_get_raw()
-# define SAMPLING_FREQ 	    22050
+# define SAMPLING_FREQ 	    16000U
 // #define SAMPLING_FREQ 	5900 	// Max sampling frequency of the mic if using analogRead()
 #define AMPLITUDE 			100     // Audio amplitude scaling factor
 #define NOISE 				200		// Can be used as a basic noise filter
@@ -32,6 +33,17 @@
 #else
   #define USE_RAW_ADC_READ false
 #endif
+
+
+// Taken from https://wiki.seeedstudio.com/xiao_esp32s3_sense_mic/
+#define USE_I2S_MIC 		true
+// #define SAMPLE_RATE 16000U
+#define SAMPLE_BITS 16
+#define WAV_HEADER_SIZE 44
+#define VOLUME_GAIN 2
+
+
+
 
 // WLED FFT params
 static float fftResultPink[NUM_GEQ_CHANNELS] = { 1.70f, 1.71f, 1.73f, 1.78f, 1.68f, 1.56f, 1.55f, 1.63f, 1.79f, 1.62f, 1.80f, 2.06f, 2.47f, 3.35f, 6.83f, 9.55f }; // Table of multiplication factors so that we can even out the frequency response.
@@ -121,12 +133,58 @@ float lastBandEnergy[NUM_BANDS];
 
 // unsigned long newTime;
 
+
+void setupI2S() {
+	I2S.setAllPins(-1, 42, 41, -1, -1);
+	if (!I2S.begin(PDM_MONO_MODE, SAMPLING_FREQ, SAMPLE_BITS)) {
+		Serial.println("Failed to initialize I2S!");
+		delay(10000);
+	}
+}
+
+
 static void async_sampling(void* arg) {
 # if USE_RAW_ADC_READ
 	while (true) {
 		buffer[lastIndex] = adc1_get_raw(ADC_CHANNEL); // On ESP32-DevKitC core 1 has a throughput of about 23569.49 samples/s
 		lastIndex = (lastIndex + 1) % BUFFER_LENGTH;
 	}
+# else
+# if USE_I2S_MIC
+	uint32_t sample_size = 0;
+	// uint32_t record_size = SAMPLING_FREQ * SAMPLE_BITS / 8 / 32;  // 1/32 second = 3ms of recording 
+	uint32_t record_size = 64 * SAMPLE_BITS / 8;
+	uint8_t *rec_buffer = NULL;
+	Serial.printf("Ready to start recording ...\n");
+
+	// File file = SD.open("/"WAV_FILE_NAME".wav", FILE_WRITE);
+	// // Write the header to the WAV file
+	// uint8_t wav_header[WAV_HEADER_SIZE];
+	// generate_wav_header(wav_header, record_size, SAMPLE_RATE);
+	// file.write(wav_header, WAV_HEADER_SIZE);
+
+	// PSRAM malloc for recording
+	rec_buffer = (uint8_t *)ps_malloc(record_size);
+	if (rec_buffer == NULL) {
+		Serial.printf("malloc failed!\n");
+		while(1) ;
+	}
+	Serial.printf("Buffer: %d bytes\n", ESP.getPsramSize() - ESP.getFreePsram());
+
+	// Record loop
+	while (true) {
+		esp_i2s::i2s_read(esp_i2s::I2S_NUM_0, rec_buffer, record_size, &sample_size, portMAX_DELAY);
+		if (sample_size == 0) {
+			Serial.printf("Record Failed!\n");
+		} 
+		// Write to cyclic buffer
+		for (uint32_t i = 0; i < sample_size; i += SAMPLE_BITS/8) {
+			(*(uint16_t *)(rec_buffer+i)) <<= VOLUME_GAIN;
+			buffer[lastIndex] = (*(uint16_t *)(rec_buffer+i));
+			lastIndex = (lastIndex + 1) % BUFFER_LENGTH;
+		}
+	}
+	
 # else
 	while (true) {
 		buffer[lastIndex] = analogRead(AUDIO_IN_PIN);  // On ESP32-DevKitC core 1 has a throughput of about 5995 samples/s
@@ -138,11 +196,13 @@ static void async_sampling(void* arg) {
 		//     vTaskDelay(1); // this keeps the watchdog happy
 		// }
 	}
-#endif
+# endif
+# endif
 }
 
 
 void setupAsyncSampling() {
+	setupI2S();
 #if USE_RAW_ADC_READ
 	adc1_config_width(ADC_WIDTH);
 	adc1_config_channel_atten(ADC_CHANNEL, ADC_ATTEN);
