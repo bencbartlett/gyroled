@@ -30,7 +30,7 @@ static float fftProcessedPrev[NUM_GEQ_CHANNELS] = { 0 };// Our calculated freq. 
 const float alpha_short = 1.0 / (30.0 * 5.0); // roughly 5 seconds
 const float alpha_long = 1.0 / (30.0 * 60.0); // roughly 60 seconds
 float heuristic_ema = 1.0;
-float heuristicThreshold = 2.5; // empirical starting value for until heuristicsBuffer is populated
+float heuristicThreshold = 2.25; // empirical starting value for until heuristicsBuffer is populated
 bool bufferInitialized = false;
 
 unsigned long lastBeatTimestamp = 0;
@@ -47,8 +47,8 @@ extern State state;
 float calculateRecencyFactor() {
 	unsigned long durationSinceLastBeat = millis() - lastBeatTimestamp;
 	// int referenceDuration = MINIMUM_DELAY_BETWEEN_BEATS - SINGLE_BEAT_DURATION;
-	int referenceDuration = TYPICAL_DELAY_BETWEEN_BEATS - SINGLE_BEAT_DURATION;
-	float maxRecencyFactor = 1.05;
+	int referenceDuration = (TYPICAL_DELAY_BETWEEN_BEATS / 2) - SINGLE_BEAT_DURATION;  // /2 is to pick up on eigth notes
+	float maxRecencyFactor = 1.10;
 	// float recencyFactor = constrain(1 - (float(referenceDuration) / durationSinceLastBeat), 0.0, maxRecencyFactor);
 	float recencyFactor = constrain(float(durationSinceLastBeat) / float(referenceDuration), 0.0, maxRecencyFactor);
 	return recencyFactor;
@@ -124,7 +124,7 @@ float computeBeatHeuristic() {
 	}
 
 	const bool convolveWithPreviousBeats = true;
-	const float previousBeatBonus = 0.25;
+	const float previousBeatBonus = 0.40;
 	const bool applyRecencyFactor = true;
 
 	// Convolve the heuristics with the previous beats, counting heuristics that are ~126 beats earlier
@@ -157,7 +157,7 @@ float computeBeatHeuristic() {
 	if (applyRecencyFactor) {
 		heuristicPostProcessed *= calculateRecencyFactor();
 	}
-	if (heuristicPostProcessed > heuristicThreshold) {
+	if (heuristicPostProcessed > heuristicThreshold && millis() - lastBeatTimestamp > SINGLE_BEAT_DURATION) {
 		lastBeatTimestamp = millis();
 		// Serial.print("BEAT (threshold) ");
 		// Serial.println(heuristicThreshold);
