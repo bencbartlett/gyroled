@@ -59,7 +59,7 @@ public:
 		// Wait for the LSS to boot
 		delay(1000);
 
-		servo.setAngularStiffness(0);
+		servo.setAngularStiffness(1);
 		// servo.setAngularHoldingStiffness(0);
 		// servo.setAngularAcceleration(15);
 		// servo.setAngularDeceleration(15);
@@ -116,9 +116,7 @@ public:
 			// servo.moveRelative(static_cast<int16_t>(predicted * 10.0f)); // Move to the predicted position in 1/10° units
 			
 			// Run at 10rpm 
-			float RPM = 8.0f;
-			float DEGS_PER_SEC = RPM * 360.0f / 60.0f;
-			servo.wheel(10 * DEGS_PER_SEC);
+			servo.wheel(static_cast<int16_t>(10.0 * target_angular_velocity));
 
 			#endif
 

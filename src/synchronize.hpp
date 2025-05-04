@@ -234,7 +234,7 @@ public:
 			// }
 
 			for (int i = 0; i < NUM_DEVICES; ++i) {
-				if (i == MASTER_INDEX) continue;	
+				if (i == MASTER_INDEX) continue;
 				sendStateToRing(deviceList[i], state);
 			}
 

@@ -2,7 +2,7 @@
 #include <cmath>
 #include "state.hpp"
 
-float RPM = 15.0f;
+float RPM = 4.0f;
 float DEGS_PER_SEC = RPM * 360.0f / 60.0f;
 
 /**
@@ -25,7 +25,7 @@ public:
         state.target_angle_4 = fmodf(state.target_angle_4 + DEGS_PER_SEC * dt*0., 360.0f);
         state.target_angle_5 = fmodf(state.target_angle_5 + DEGS_PER_SEC * dt*0., 360.0f);
         state.target_angle_6 = fmodf(state.target_angle_6 + DEGS_PER_SEC * dt, 360.0f);
-		state.target_angular_velocity_1 = DEGS_PER_SEC;
+		state.target_angular_velocity_1 = 0. * DEGS_PER_SEC;
 		state.target_angular_velocity_2 = DEGS_PER_SEC;
 		state.target_angular_velocity_3 = DEGS_PER_SEC;
 		state.target_angular_velocity_4 = DEGS_PER_SEC;

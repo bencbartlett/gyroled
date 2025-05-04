@@ -79,7 +79,7 @@ void setup() {
 		setupAsyncSampling();
 		setupBluetooth();
 	} else {
-		setupBluetooth(); // TODO: this is for debug and should normally only run on master controller
+		// setupBluetooth(); // TODO: this is for debug and should normally only run on master controller
 	}
 	
 	
@@ -147,9 +147,9 @@ void loop() {
 	#endif // PRINT_SUMMARY
 
 	// Send synchronization data via ESP-NOW
-	// synchronizer.synchronize();
-	#endif // BLUETOOTH_DEBUG_MODE
+	synchronizer.synchronize();
 
+	#endif // BLUETOOTH_DEBUG_MODE
 
 	float updatesPerSecondImmediate = 1000.0 / float(millis() - state.lastUpdate);
 	state.lastUpdate = millis();
