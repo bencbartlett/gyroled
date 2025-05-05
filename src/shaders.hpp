@@ -4,6 +4,8 @@
 #include <Adafruit_NeoPixel.h>
 #include <cmath>
 
+#include "state.hpp"
+
 #define NUM_RINGS 6
 
 const int led_counts_outside[NUM_RINGS] = {
@@ -41,8 +43,8 @@ const int led_count_total = led_count_total_outside + led_count_total_inside;
 // const int ring_3_midpoint_L = (int)(LED_COUNT_RING_3 * 0.25 + LED_COUNT_RING_2 + LED_COUNT_RING_1);
 // const int ring_3_midpoint_R = (int)(LED_COUNT_RING_3 * 0.75 + LED_COUNT_RING_2 + LED_COUNT_RING_1);
 
-extern unsigned long lastBeatTimestamp;  // Defined in beatdetection.cpp
-extern unsigned long elapsedBeats;
+extern State state;
+
 extern int deviceIndex;
 
 struct LedColor {

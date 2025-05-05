@@ -21,14 +21,10 @@
 #define LED_PIN_2         		44 // outside edge of ring, forward side of servo (toward input cable)
 #define LED_PIN_3         		43 // inside edge of ring
 
-// int frame = 0;
-// float updatesPerSecond = 50.0;
-
 int led_count_this_ring = 0; // this is populated in ShaderManager(); can't be done statically because of import ordering
 int led_count_this_ring_inside = 0;
 
 const float alpha_short = 1.0 / (50.0 * 1.0); // roughly 1 seconds
-// unsigned long lastUpdate = 0;
 
 int deviceIndex = -1;
 
@@ -44,10 +40,7 @@ ServoManager servoManager;
 ServoController servoController;
 Synchronizer synchronizer;
 TrajectoryPlanner trajectoryPlanner;
-
 ShaderManager shaderManager(strip1, strip2, strip3);
-
-
 
 
 void setup() {
@@ -66,20 +59,22 @@ void setup() {
 	Serial.println("Synchronizer instance created");
 	synchronizer.init();
 
-
-	// servoManager.setupServos();
-
 	// This must be done after synchronizer.init()
 	shaderManager.init();
 	shaderManager.setupLedStrips(state.brightness);
 
-	servoController.setupServo();
-
 	if (synchronizer.role == MASTER) {
 		setupAsyncSampling();
 		setupBluetooth();
-	} else {
+	} else if (synchronizer.role == RING) {
+		servoController.setupServo();
 		// setupBluetooth(); // TODO: this is for debug and should normally only run on master controller
+	} else if (synchronizer.role == BASE) {
+		// Do nothing
+	} else {
+		Serial.print("Unknown role: ");
+		Serial.println(synchronizer.role);
+		delay(100000);
 	}
 	
 	
@@ -101,43 +96,32 @@ void loop() {
     // On the master node, step the trajectory forward at 10 RPM
 	if (synchronizer.role == MASTER) {
 		trajectoryPlanner.update(state);
+		state.frame++;
+		state.time = millis();
 	}
-
-	if (deviceIndex == 5) {
-		state.brightness=255;
-	}
-
-	state.frame++;
-	state.time = millis();
 
 	if (state.frame % 30 == 0) {
 		uint8_t brightness = state.brightness;
-		if (deviceIndex == 6)	{
+		if (deviceIndex == 5)	{
 			brightness = 255; // sphere always at max brightness
 		}
-		shaderManager.setBrightness(state.brightness);
+		shaderManager.setBrightness(brightness);
 	}
 
-
-	float beatHeuristic = 0.0;
 	if (synchronizer.role == MASTER) {
-		beatHeuristic = computeBeatHeuristic();
-	}
-
-	if (synchronizer.role == RING) {
-		// servoManager.runServos();
+		state.beat_intensity = computeBeatHeuristic();
+	} else if (synchronizer.role == RING) {
 		servoController.runServo();
-		shaderManager.run(state.frame, beatHeuristic);
+		shaderManager.run(state.frame, state.beat_intensity);
+	} else if (synchronizer.role == BASE) {
+		shaderManager.run(state.frame, state.beat_intensity);	
 	}
-
-
-
 
 	#if PRINT_SUMMARY
 		Serial.print("Updates per second: ");
 		Serial.print(state.updatesPerSecond);
 		Serial.print("  |  Beat heuristic: ");
-		Serial.println(beatHeuristic);
+		Serial.println(state.beat_intensity);
 		// Serial.print("Active shader: ");
 		// Serial.println(shaderManager.activeShader->getName());
 		// Serial.print("Active accent shader: ");
