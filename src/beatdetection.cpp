@@ -33,8 +33,6 @@ float heuristic_ema = 1.0;
 float heuristicThreshold = 2.25; // empirical starting value for until heuristicsBuffer is populated
 bool bufferInitialized = false;
 
-unsigned long lastBeatTimestamp = 0;
-unsigned long elapsedBeats = 0;
 
 float frequencies[SAMPLES / 2] = { 0. };
 
@@ -45,7 +43,7 @@ extern State state;
 
 
 float calculateRecencyFactor() {
-	unsigned long durationSinceLastBeat = millis() - lastBeatTimestamp;
+	unsigned long durationSinceLastBeat = millis() - state.lastBeatTimestamp;
 	// int referenceDuration = MINIMUM_DELAY_BETWEEN_BEATS - SINGLE_BEAT_DURATION;
 	int referenceDuration = (TYPICAL_DELAY_BETWEEN_BEATS / 2) - SINGLE_BEAT_DURATION;  // /2 is to pick up on eigth notes
 	float maxRecencyFactor = 1.10;
@@ -157,11 +155,11 @@ float computeBeatHeuristic() {
 	if (applyRecencyFactor) {
 		heuristicPostProcessed *= calculateRecencyFactor();
 	}
-	if (heuristicPostProcessed > heuristicThreshold && millis() - lastBeatTimestamp > SINGLE_BEAT_DURATION) {
-		lastBeatTimestamp = millis();
+	if (heuristicPostProcessed > heuristicThreshold && millis() - state.lastBeatTimestamp > SINGLE_BEAT_DURATION) {
+		state.lastBeatTimestamp = millis();
 		// Serial.print("BEAT (threshold) ");
 		// Serial.println(heuristicThreshold);
-		elapsedBeats++;
+		state.elapsedBeats++;
 	}
 
 
