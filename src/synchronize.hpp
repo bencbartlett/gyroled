@@ -4,12 +4,14 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <esp_now.h>
+#include <esp_wifi.h>
 #include <string.h>
 #include "state.hpp"
 
 // Hardcoded list of device MAC addresses (index 0: master; indexes 1-6: rings)
 #define NUM_DEVICES 7
 #define MASTER_INDEX 6
+#define ESPNOW_CH 1
 uint8_t BROADCAST_ALL[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 uint8_t deviceList[NUM_DEVICES][6] = {  // TODO: finish filling out this list
   {0x24, 0x58, 0x7C, 0xE4, 0x1A, 0x50},  // ring 1 (outer ring)
@@ -23,7 +25,7 @@ uint8_t deviceList[NUM_DEVICES][6] = {  // TODO: finish filling out this list
 unsigned long heartbeats[NUM_DEVICES] = {0};
 
 
-enum DeviceRole { MASTER, RING };
+enum DeviceRole { MASTER, RING, BASE };
 
 extern ServoController servoController;
 
@@ -32,15 +34,12 @@ extern State state;
 static volatile bool tx_done      = true;
 static volatile esp_now_send_status_t last_status;
 
-void IRAM_ATTR onDataSent(const uint8_t *mac,
-                          esp_now_send_status_t status)
-{
+void IRAM_ATTR onDataSent(const uint8_t *mac, esp_now_send_status_t status) {
     last_status = status;
     tx_done     = true;            // free the “slot”
 }
 
-void sendStateToRing(const uint8_t *addr, const State &st)
-{
+void sendStateToRing(const uint8_t *addr, const State &st) {
     while (!tx_done) {             // wait for previous packet to drain
         vTaskDelay(1);             // give Wi‑Fi task time (~1 ms)
     }
@@ -104,7 +103,17 @@ public:
 		Serial.println(deviceIndex);
 
 		// Initialize ESP-NOW.
-		if (esp_now_init() != ESP_OK) {
+		esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_LR);
+		esp_wifi_set_promiscuous(false);
+    	esp_wifi_set_channel(ESPNOW_CH, WIFI_SECOND_CHAN_NONE);
+
+		esp_wifi_set_mode(WIFI_MODE_STA);   // or AP / STA+AP
+		esp_wifi_start();
+		esp_wifi_set_max_tx_power(80);      // 20 dBm (80 × 0.25)
+
+		esp_err_t response = esp_now_init();  // ESP‑NOW packets now use ≤20 dBm
+
+		if (response != ESP_OK) {
 			Serial.println("Error initializing ESP-NOW");
 			while (true);
 		}
@@ -122,7 +131,7 @@ public:
 				if (i == MASTER_INDEX) continue;
 				esp_now_peer_info_t peerInfo = {};
 				memcpy(peerInfo.peer_addr, deviceList[i], 6);
-				peerInfo.channel = 0;
+				peerInfo.channel = ESPNOW_CH;
 				peerInfo.encrypt = false;
 				if (esp_now_add_peer(&peerInfo) != ESP_OK) {
 					Serial.print("Failed to add ring peer ");
@@ -135,7 +144,7 @@ public:
 			// ring adds master.
 			esp_now_peer_info_t peerInfo = {};
 			memcpy(peerInfo.peer_addr, deviceList[MASTER_INDEX], 6);
-			peerInfo.channel = 0;
+			peerInfo.channel = ESPNOW_CH;
 			peerInfo.encrypt = false;
 			if (esp_now_add_peer(&peerInfo) != ESP_OK) {
 				Serial.println("Failed to add master peer");
