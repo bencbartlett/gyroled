@@ -94,5 +94,4 @@ class OtaClient {
     ESP.restart();
   }
 };
-
 inline OtaClient *OtaClient::instance = nullptr;
