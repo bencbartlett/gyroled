@@ -1,6 +1,9 @@
+#define IS_GATEWAY true  // only true if we are flashing the OTA update gateway node (almost never)
+#if !(IS_GATEWAY)
+
 #include <Arduino.h>
 #include <Adafruit_NeoPixel.h>
-
+#include "ota.h"
 #include "state.hpp"
 #include "fft.h"
 #include "beatdetection.h"
@@ -42,6 +45,7 @@ Synchronizer synchronizer;
 TrajectoryPlanner trajectoryPlanner;
 ShaderManager shaderManager(strip1, strip2, strip3);
 
+OtaClient ota;
 
 void setup() {
 	#if BLUETOOTH_DEBUG_MODE
@@ -50,6 +54,16 @@ void setup() {
 	#else
 
 	Serial.begin(115200); // This is already done in synchronizer init
+
+	delay(5000);
+	Serial.println("Booting OTA");
+
+	ota.begin();
+
+	Serial.println("Waiting for 10 seconds...");
+	delay(10000);
+
+
 	Serial1.begin(115200, SERIAL_8N1, SERVO_RX_PIN, SERVO_TX_PIN);
 	Serial.println("Waiting for serial to connect...");
 	delay(1000);
@@ -82,6 +96,7 @@ void setup() {
 }
 
 void loop() {
+	Serial.println("asdf");
 
 	#if BLUETOOTH_DEBUG_MODE
 	delay(500);
@@ -139,3 +154,10 @@ void loop() {
 	state.lastUpdate = millis();
 	state.updatesPerSecond = alpha_short * updatesPerSecondImmediate + (1.0 - alpha_short) * state.updatesPerSecond;
 }
+
+
+#else // IS_GATEWAY
+#include "gateway.hpp"
+void setup() { setupGateway(); }
+void loop() { loopGateway(); }
+#endif // !(IS_GATEWAY)

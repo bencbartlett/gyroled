@@ -11,7 +11,7 @@
 // Hardcoded list of device MAC addresses (index 0: master; indexes 1-6: rings)
 #define NUM_DEVICES 7
 #define MASTER_INDEX 6
-#define ESPNOW_CH 1
+#define ESPNOW_CH 0
 uint8_t BROADCAST_ALL[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 uint8_t deviceList[NUM_DEVICES][6] = {  // TODO: finish filling out this list
   {0x24, 0x58, 0x7C, 0xE4, 0x1A, 0x50},  // ring 1 (outer ring)
