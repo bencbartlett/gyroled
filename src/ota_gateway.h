@@ -6,10 +6,8 @@
 #include "esp_rom_crc.h"
 
 /* ---- gateway radio / HTTP parameters ---- */
-#ifndef GATEWAY_SSID
 #define GATEWAY_SSID "EventHorizonOTA"
 #define GATEWAY_PASS "otapass"
-#endif
 #define GATEWAY_FW_URL "http://192.168.4.1/latest.bin"
 
 struct __attribute__((packed)) OtaBeacon {
@@ -24,7 +22,7 @@ class OtaClient {
   {
     WiFi.mode(WIFI_STA);
     if (esp_now_init() != ESP_OK) {
-      Serial.println("ESP‑NOW init fail"); return;
+      Serial.println("ESP-NOW init fail"); return;
     }
     esp_now_register_recv_cb(onBeaconStatic);
     instance = this;
@@ -65,7 +63,7 @@ class OtaClient {
     if (code != HTTP_CODE_OK) { Serial.printf("HTTP err %d\n", code); return; }
 
     int len = http.getSize();
-    if (len != (int)expectedSize) Serial.println("⚠ Size mismatch – continuing");
+    if (len != (int)expectedSize) Serial.println("⚠ Size mismatch - continuing");
 
     if (!Update.begin(len)) { Serial.println("Update begin fail"); return; }
 
@@ -84,13 +82,13 @@ class OtaClient {
     crc ^= 0xFFFFFFFF;
 
     if (expectedCrc && crc != expectedCrc) {
-      Serial.println("✗ CRC mismatch – aborting");
+      Serial.println("✗ CRC mismatch - aborting");
       Update.abort(); return;
     }
     if (!Update.end(true)) {
       Serial.printf("✗ Update error: %s\n", Update.errorString()); return;
     }
-    Serial.println("✓ OTA success – rebooting");
+    Serial.println("✓ OTA success - rebooting");
     ESP.restart();
   }
 };

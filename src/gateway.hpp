@@ -7,7 +7,7 @@
 #include "esp_rom_crc.h"
 
 #ifndef AP_SSID        // can be overridden from build_flags
-#define AP_SSID  "EventHorizonOTA"
+#define AP_SSID  "EventHorizonOTA2"
 #define AP_PASS  "updateeventhorizon!1"
 #endif
 
@@ -48,7 +48,7 @@ void sendBeacon(uint32_t size, uint32_t crc)
 void setupEspNow()
 {
   if (esp_now_init() != ESP_OK) {
-    Serial.println("ESP‑NOW init FAILED!");
+    Serial.println("ESP-NOW init FAILED!");
     return;
   }
   esp_now_peer_info_t peer{};
@@ -64,7 +64,7 @@ void setupWeb()
 {
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *r) {
     r->send(200, "text/plain",
-            "ESP32 OTA gateway – POST your firmware to /upload");
+            "ESP32 OTA gateway - POST your firmware to /upload");
   });
 
   /* stream the incoming POST straight into SPIFFS */
